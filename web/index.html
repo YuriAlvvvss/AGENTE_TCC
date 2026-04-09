@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ROSITA - Assistente Escolar</title>
+  <link rel="stylesheet" href="styles/main.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <h1>ROSITA</h1>
+      <p class="subtitle">Assistente Escolar - PEI Rosa Bonfiglioli</p>
+      <div id="status" class="status status--offline">Verificando...</div>
+      <div class="model-row">
+        <label for="model-select">Modelo Ollama:</label>
+        <select id="model-select" class="model-select"></select>
+        <button id="reload-models-btn" class="btn btn-secondary" type="button">Atualizar modelos</button>
+      </div>
+      <div id="token-stats" class="token-stats">Tokens: 0</div>
+    </header>
+    <main class="main">
+      <div id="chat-container" class="chat-container"></div>
+      <div class="input-row">
+        <input type="text" id="user-input" class="user-input" placeholder="Digite sua pergunta..." maxlength="1000" />
+        <button id="send-btn" class="btn btn-send">Enviar</button>
+        <button id="clear-btn" class="btn btn-clear">Limpar</button>
+      </div>
+    </main>
+  </div>
+
+  <div id="loading-overlay" class="loading-overlay hidden" aria-live="polite">
+    <div class="loading-card">
+      <div class="spinner"></div>
+      <div id="loading-text">Carregando...</div>
+    </div>
+  </div>
+  <script src="scripts/api_client.js"></script>
+  <script src="scripts/main.js"></script>
+</body>
+</html>

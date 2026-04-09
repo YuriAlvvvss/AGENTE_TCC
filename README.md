@@ -1,98 +1,95 @@
-# ROSITA — Assistente Escolar (PEI Rosa Bonfiglioli)
+# ROSITA - Assistente Escolar
 
-Aplicação web que replica o comportamento do assistente em linha de comando (`AGENTE.py`), com backend **Flask**, modelo **Ollama** (`llama3.1:8b`) em modo streaming e frontend **HTML/CSS/JavaScript** consumindo a API REST e eventos SSE.
+Projeto Python com backend Flask + Ollama e frontend web.
 
-## Requisitos
+## Estrutura padronizada
 
-- Python 3.10+ recomendado
-- [Ollama](https://ollama.com/) instalado e em execução, com o modelo `llama3.1:8b` disponível (`ollama pull llama3.1:8b`)
+```txt
+AGENTE_TCC/
+├── agent_cli.py
+├── backend/
+│   ├── app.py
+│   ├── requirements.txt
+│   ├── data/
+│   │   ├── agent_instructions.txt
+│   │   └── regimento_ECIM.txt
+│   └── src/rosita/
+├── web/
+│   ├── index.html
+│   ├── scripts/
+│   └── styles/
+├── docs/
+│   ├── README.md
+│   ├── architecture.md
+│   └── implementation_plan.md
+└── README.md
+```
 
-## Instalação
+## Convencoes adotadas
 
-Na raiz do projeto:
+- nomes de pastas em minusculo;
+- nomes Python em `snake_case`;
+- separacao por camadas (core, api, utils, settings);
+- instrucoes do agente fora do codigo.
+
+## Instrucoes do agente (editavel)
+
+Arquivo: `backend/data/agent_instructions.txt`
+
+Placeholder suportado: `{REGIMENTO}`.
+
+## Execucao
+
+### Inicializacao automatica (recomendado - Windows)
+
+```bat
+start_system.bat
+```
+
+O script:
+- verifica Python no computador;
+- tenta instalar Python automaticamente via `winget` se nao encontrar;
+- verifica se o Ollama esta instalado;
+- pergunta se deseja instalar o Ollama automaticamente quando ausente;
+- inicia o Ollama automaticamente quando instalado e parado;
+- cria `.venv`;
+- instala dependencias do backend;
+- inicia backend e web em terminais separados;
+- abre o navegador em `http://localhost:8080`;
+- gera logs de inicializacao em `startup.log`.
+
+### Backend
 
 ```bash
 cd backend
 pip install -r requirements.txt
-```
-
-Opcional: crie um ambiente virtual (`python -m venv venv`) antes do `pip install`.
-
-## Executar o backend
-
-```bash
-cd backend
 python app.py
 ```
 
-O servidor sobe em **http://localhost:5000** (host `0.0.0.0`, porta `5000`, modo debug conforme `config.py`).
-
-- Raiz: `GET /` — JSON confirmando que a API está online
-- Documentação dos endpoints da API: ver seção [API](#api-rest) abaixo
-
-## Frontend
-
-1. Com o backend em execução, abra o arquivo `frontend/index.html` no navegador **ou**
-2. Sirva a pasta `frontend` com um servidor HTTP local, por exemplo:
+### Web (frontend)
 
 ```bash
-cd frontend
+cd web
 python -m http.server 8080
 ```
 
-Acesse **http://localhost:8080**. O cliente JavaScript usa por padrão `http://localhost:5000` como URL da API.
+Abra `http://localhost:8080`.
 
-**Boas práticas:** em produção, sirva o frontend e o backend sob o mesmo domínio ou configure CORS de forma restritiva; use HTTPS e variáveis de ambiente para segredos (nunca commite `.env`).
+### CLI (opcional)
 
-## Estrutura de pastas
-
-```
-AGENTE_TCC/
-├── AGENTE.py                 # CLI original (mantido)
-├── backend/
-│   ├── app.py                # Flask entrypoint
-│   ├── config.py             # Configurações
-│   ├── requirements.txt
-│   ├── data/
-│   │   └── regimento_ECIM.txt
-│   ├── core/
-│   │   └── agent.py          # RositaAgent + Ollama streaming
-│   ├── api/
-│   │   └── routes.py         # Blueprint /api
-│   └── utils/
-│       ├── file_handler.py
-│       └── validators.py
-├── frontend/
-│   ├── index.html
-│   ├── styles/main.css
-│   └── scripts/
-│       ├── api_client.js
-│       └── main.js
-├── .gitignore
-└── README.md
+```bash
+python agent_cli.py
 ```
 
-## API REST
+## API
 
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| `GET` | `/` | Mensagem JSON: API online |
-| `GET` | `/api/status` | `status`, `agente` |
-| `POST` | `/api/chat` | Body JSON `{"mensagem": "..."}` — resposta **SSE** (`text/event-stream`) |
-| `GET` | `/api/historico` | Histórico atual (lista de mensagens) |
-| `POST` | `/api/limpar` | Limpa o histórico do agente |
+- `GET /`
+- `GET /api/status`
+- `POST /api/chat`
+- `GET /api/historico`
+- `POST /api/limpar`
 
-O streaming em `/api/chat` envia linhas `data: ...` no formato SSE; o término é sinalizado com `data: [FIM]`.
+## Documentacao adicional
 
-## Boas práticas adotadas
-
-- Separação entre configuração, rotas, núcleo do agente e utilitários
-- Validação de entrada no backend e no cliente
-- Logging em Python (`INFO` / erros com stack)
-- CORS habilitado para desenvolvimento local
-- Histórico limitado às últimas 5 trocas no prompt (igual ao `AGENTE.py`)
-- Opções Ollama alinhadas ao CLI: `num_predict`, `temperature`, `top_p`, `repeat_penalty`
-
-## Licença / uso
-
-Uso interno do projeto escolar conforme contexto da PEI Rosa Bonfiglioli.
+- `docs/architecture.md`
+- `docs/implementation_plan.md`
