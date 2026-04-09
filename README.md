@@ -58,6 +58,24 @@ O script:
 - abre o navegador em `http://localhost:8080`;
 - gera logs de inicializacao em `startup.log`.
 
+### Inicializacao automatica (recomendado - Linux)
+
+```bash
+chmod +x start_system.sh
+./start_system.sh
+```
+
+O script Linux segue o mesmo fluxo do Windows:
+- verifica Python no sistema (com opcao de instalacao automatica);
+- verifica e inicializa Ollama (com opcao de instalacao automatica);
+- cria/usa `.venv`;
+- instala dependencias do backend;
+- inicia backend e web;
+- abre o navegador em `http://localhost:8080`;
+- gera logs em `startup.log`.
+
+Guia detalhado: `docs/linux_startup.md`.
+
 ### Backend
 
 ```bash
