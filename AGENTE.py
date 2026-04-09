@@ -26,7 +26,7 @@ Responda com máximo 3 linhas. Seja direto e amigável.
 VALORES ECIM: Civismo, Dedicação, Excelência, Honestidade, Respeito
 
 CONTATO: (11) 3609-6072 | Secretaria: 09h-18h (seg-sex)
-AULAS: 7h10-14h10 (fund) | 14h20-21h30 (médio)
+AULAS: 7h10-14h10 (fundamental) | 14h20-21h30 (médio)
 
 REGIMENTO:
 {regimento}'''
