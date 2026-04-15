@@ -65,14 +65,19 @@ chmod +x start_system.sh
 ./start_system.sh
 ```
 
-O script Linux segue o mesmo fluxo do Windows:
-- verifica Python no sistema (com opcao de instalacao automatica);
-- verifica e inicializa Ollama (com opcao de instalacao automatica);
-- cria/usa `.venv`;
-- instala dependencias do backend;
-- inicia backend e web;
-- abre o navegador em `http://localhost:8080`;
-- gera logs em `startup.log`.
+O script Linux foi reforçado para um cenário mais robusto:
+- valida a estrutura do projeto antes de iniciar;
+- verifica Python 3.8+ e instala dependências de sistema quando necessário;
+- cria/usa `.venv` e reinstala pacotes com retry;
+- garante Ollama ativo e baixa o modelo configurado;
+- valida backend e web por checagem real de resposta;
+- grava logs persistentes na pasta `logs/`.
+
+Para ambiente leve, como MiniOS, você pode usar um modelo menor:
+
+```bash
+ROSITA_OLLAMA_MODEL=llama3.2:3b ./start_system.sh --yes
+```
 
 Guia detalhado: `docs/linux_startup.md`.
 

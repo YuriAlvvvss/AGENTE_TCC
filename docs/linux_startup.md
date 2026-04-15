@@ -1,55 +1,88 @@
-# Execucao no Linux com Script Automatico
+# Execução no Linux com Script Automático
 
-Este guia descreve como iniciar a ROSITA no Linux usando o script `start_system.sh`.
+Este guia descreve a inicialização da ROSITA no Linux usando o script de partida robusto do projeto.
 
-## O que o script faz
+## O que foi reforçado
 
-Ao executar o script, ele:
+O fluxo agora está mais estável para ambientes leves, inclusive MiniOS rodando no pendrive:
 
-1. verifica Python no sistema e oferece instalacao automatica quando ausente;
-2. verifica Ollama e oferece instalacao automatica quando ausente;
-3. inicia o Ollama automaticamente quando estiver instalado, mas parado;
-4. cria o ambiente virtual `.venv` (quando necessario);
-5. atualiza `pip`;
-6. instala dependencias de `backend/requirements.txt`;
-7. inicia backend e frontend;
-8. tenta abrir o navegador em `http://localhost:8080`;
-9. registra o processo em `startup.log`.
+1. valida a estrutura mínima do projeto antes de iniciar;
+2. verifica Python 3.8+ e tenta instalar os pacotes necessários pelo gerenciador do sistema;
+3. cria ou reaproveita a pasta do ambiente virtual;
+4. atualiza pip, setuptools e wheel com tentativas de repetição;
+5. instala as dependências do backend;
+6. garante que o Ollama esteja ativo;
+7. verifica se o modelo configurado já existe e faz o download quando necessário;
+8. inicia backend e frontend com checagem real de saúde;
+9. grava logs persistentes na pasta de logs do projeto.
 
-## Pre-requisitos
+## Requisitos recomendados para MiniOS
 
-- Linux com `bash`;
-- permissao para executar `sudo` (apenas se precisar instalar Python/Ollama);
-- internet (para instalar pacotes e dependencias na primeira execucao).
+- Linux com bash;
+- acesso a sudo ou conta root para instalar dependências;
+- internet na primeira execução;
+- pelo menos 6 GB livres em disco para o modelo padrão;
+- idealmente 8 GB de RAM para o modelo padrão.
 
-## Como usar
+> Em máquinas mais limitadas, prefira um modelo menor para maior estabilidade.
 
-No diretorio raiz do projeto:
+## Uso recomendado
+
+Na raiz do projeto:
 
 ```bash
 chmod +x start_system.sh
 ./start_system.sh
 ```
 
-## Enderecos apos inicializacao
+## Uso recomendado no MiniOS
 
-- Backend: `http://localhost:5000`
-- Web: `http://localhost:8080`
-- Ollama: `http://localhost:11434`
+Se o sistema for mais leve ou tiver pouca RAM, use um modelo menor:
+
+```bash
+ROSITA_OLLAMA_MODEL=llama3.2:3b ./start_system.sh --yes
+```
+
+## Modo somente validação
+
+Para instalar e validar tudo sem iniciar os serviços ainda:
+
+```bash
+./start_system.sh --no-start --yes
+```
+
+## Opções suportadas
+
+```bash
+./start_system.sh --help
+```
+
+Opções principais:
+
+- `--yes`: aprova automaticamente instalações necessárias;
+- `--skip-browser`: não abre navegador automaticamente;
+- `--no-start`: apenas valida e instala dependências.
+
+## Endereços após a inicialização
+
+- Backend: http://127.0.0.1:5000
+- Web: http://127.0.0.1:8080
+- Ollama: http://127.0.0.1:11434
 
 ## Logs
 
-- Log principal de inicializacao: `startup.log`
-- Quando o terminal grafico nao estiver disponivel, os servicos podem iniciar em background:
-  - backend: `/tmp/rosita_backend.log`
-  - web: `/tmp/rosita_web.log`
-  - ollama: `/tmp/rosita_ollama.log`
+Os logs agora ficam dentro da pasta do projeto:
 
-## Parar os servicos
+- `logs/startup.log`
+- `logs/backend.log`
+- `logs/web.log`
+- `logs/ollama.log`
 
-Se iniciado em terminais separados, feche os terminais.
+## Encerramento dos serviços
 
-Se iniciado em background:
+Se estiverem em terminais separados, basta fechar os terminais.
+
+Se estiverem em background:
 
 ```bash
 pkill -f "app.py"
@@ -57,12 +90,12 @@ pkill -f "http.server 8080"
 pkill -f "ollama serve"
 ```
 
-## Variaveis opcionais
+## Ajuste de portas
 
-Voce pode alterar portas sem editar codigo:
+Você pode alterar as portas sem editar o código:
 
 ```bash
-ROSITA_API_PORT=5001 ROSITA_WEB_PORT=8081 ./start_system.sh
+ROSITA_API_PORT=5001 ROSITA_WEB_PORT=8081 ./start_system.sh --yes
 ```
 
-O script mostra as portas efetivas no final da execucao.
+O script informa as portas efetivas no final da execução.
