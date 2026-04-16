@@ -69,10 +69,6 @@ body {
   color: var(--color-text-muted);
 }
 
-.top-actions {
-  margin-top: 10px;
-}
-
 .model-manager {
   margin-top: 14px;
   padding: 12px 14px 14px;
@@ -358,7 +354,6 @@ body {
   display: none;
 }
 
-.modal-overlay,
 .loading-overlay {
   position: fixed;
   inset: 0;
@@ -369,66 +364,8 @@ body {
   z-index: 999;
 }
 
-.modal-overlay.hidden,
 .loading-overlay.hidden {
   display: none;
-}
-
-.modal-card {
-  background: #ffffff;
-  padding: 20px 24px;
-  border-radius: 14px;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.2);
-}
-
-.config-card {
-  width: min(900px, 92vw);
-  max-height: 88vh;
-  overflow: auto;
-  text-align: left;
-}
-
-.modal-header,
-.config-toolbar,
-.config-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-}
-
-.config-hint {
-  margin: 10px 0;
-  color: var(--color-text-muted);
-  font-size: 13px;
-}
-
-.config-editor {
-  width: 100%;
-  min-height: 340px;
-  margin-top: 10px;
-  padding: 12px;
-  border-radius: 10px;
-  border: 1px solid var(--color-border-strong);
-  background: var(--color-surface);
-  color: var(--color-text);
-  font-family: Consolas, "Courier New", monospace;
-  font-size: 13px;
-  line-height: 1.5;
-  resize: vertical;
-}
-
-.config-editor:focus {
-  outline: none;
-  border-color: var(--color-primary);
-  box-shadow: var(--shadow-focus);
-}
-
-.config-status {
-  margin-top: 8px;
-  font-size: 13px;
-  color: #334155;
 }
 
 .loading-card {

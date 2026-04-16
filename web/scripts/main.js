@@ -6,14 +6,6 @@ class RositaApp {
     this.clearBtn = document.getElementById("clear-btn");
     this.statusEl = document.getElementById("status");
     this.serverInfoEl = document.getElementById("server-info");
-    this.settingsBtn = document.getElementById("settings-btn");
-    this.configModal = document.getElementById("config-modal");
-    this.closeSettingsBtn = document.getElementById("close-settings-btn");
-    this.configFileSelect = document.getElementById("config-file-select");
-    this.reloadConfigBtn = document.getElementById("reload-config-btn");
-    this.configEditor = document.getElementById("config-editor");
-    this.configStatusEl = document.getElementById("config-status");
-    this.saveConfigBtn = document.getElementById("save-config-btn");
     this.modelSelect = document.getElementById("model-select");
     this.reloadModelsBtn = document.getElementById("reload-models-btn");
     this.downloadInput = document.getElementById("model-download-input");
@@ -33,7 +25,6 @@ class RositaApp {
     this.currentTokens = [];
     this.hasShownEmptyModelsTip = false;
     this.modelRefreshTimer = null;
-    this.currentConfigFile = "";
 
     this.bindEvents();
     this.updateControls();
@@ -47,11 +38,6 @@ class RositaApp {
     this.clearBtn.addEventListener("click", () => this.limparChat());
     this.reloadModelsBtn.addEventListener("click", () => this.carregarModelos());
     this.downloadBtn.addEventListener("click", () => this.baixarModelo());
-    this.settingsBtn.addEventListener("click", () => this.abrirConfiguracoes());
-    this.closeSettingsBtn.addEventListener("click", () => this.fecharConfiguracoes());
-    this.reloadConfigBtn.addEventListener("click", () => this.carregarArquivosConfiguracao());
-    this.configFileSelect.addEventListener("change", () => this.carregarConteudoArquivoConfiguracao());
-    this.saveConfigBtn.addEventListener("click", () => this.salvarConfiguracoes());
     this.modelSelect.addEventListener("change", () => this.selecionarModelo());
 
     this.userInput.addEventListener("keypress", (e) => {
@@ -76,7 +62,6 @@ class RositaApp {
     this.clearBtn.disabled = this.isAwaitingResponse;
     this.downloadInput.disabled = this.isAwaitingResponse || this.isDownloadingModel;
     this.downloadBtn.disabled = this.isAwaitingResponse || this.isDownloadingModel;
-    this.settingsBtn.disabled = false;
   }
 
   async verificarStatus() {
@@ -339,83 +324,6 @@ class RositaApp {
     } finally {
       this.isAwaitingResponse = false;
       this.updateControls();
-    }
-  }
-
-  async abrirConfiguracoes() {
-    this.configModal.classList.remove("hidden");
-    await this.carregarArquivosConfiguracao();
-  }
-
-  fecharConfiguracoes() {
-    this.configModal.classList.add("hidden");
-  }
-
-  async carregarArquivosConfiguracao() {
-    this.configStatusEl.textContent = "Carregando arquivos editáveis...";
-    try {
-      const payload = await window.rositaApi.listarArquivosConfiguracao();
-      const files = payload.files || [];
-      this.configFileSelect.innerHTML = "";
-
-      if (!files.length) {
-        const option = document.createElement("option");
-        option.value = "";
-        option.textContent = "Nenhum arquivo editável disponível";
-        this.configFileSelect.appendChild(option);
-        this.configEditor.value = "";
-        this.currentConfigFile = "";
-        this.configStatusEl.textContent = "Nenhum arquivo de configuração disponível.";
-        return;
-      }
-
-      for (const file of files) {
-        const option = document.createElement("option");
-        option.value = file;
-        option.textContent = file;
-        this.configFileSelect.appendChild(option);
-      }
-
-      this.currentConfigFile = this.configFileSelect.value;
-      await this.carregarConteudoArquivoConfiguracao();
-    } catch (err) {
-      this.configStatusEl.textContent = `Erro ao listar arquivos: ${err.message || String(err)}`;
-    }
-  }
-
-  async carregarConteudoArquivoConfiguracao() {
-    const filename = this.configFileSelect.value;
-    this.currentConfigFile = filename;
-    if (!filename) {
-      this.configEditor.value = "";
-      return;
-    }
-
-    this.configStatusEl.textContent = `Carregando ${filename}...`;
-    try {
-      const payload = await window.rositaApi.lerArquivoConfiguracao(filename);
-      this.configEditor.value = payload.content || "";
-      this.configStatusEl.textContent = `${filename} carregado para edição.`;
-    } catch (err) {
-      this.configStatusEl.textContent = `Erro ao abrir arquivo: ${err.message || String(err)}`;
-    }
-  }
-
-  async salvarConfiguracoes() {
-    const filename = this.currentConfigFile || this.configFileSelect.value;
-    if (!filename) return;
-
-    this.configStatusEl.textContent = `Salvando ${filename}...`;
-    this.saveConfigBtn.disabled = true;
-    try {
-      await window.rositaApi.salvarArquivoConfiguracao(filename, this.configEditor.value);
-      this.configStatusEl.textContent = `${filename} salvo com sucesso. O contexto da IA foi atualizado.`;
-      this.adicionarMensagem(`As configurações do arquivo ${filename} foram salvas com sucesso.`, "assistant");
-      await this.verificarStatus();
-    } catch (err) {
-      this.configStatusEl.textContent = `Erro ao salvar arquivo: ${err.message || String(err)}`;
-    } finally {
-      this.saveConfigBtn.disabled = false;
     }
   }
 
