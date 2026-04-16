@@ -116,8 +116,8 @@ docker compose up --build -d
 ```
 
 Serviços padrão:
-- Web: `http://SEU_SERVIDOR:8080`
-- API: `http://SEU_SERVIDOR:5000`
+- Web: `http://SEU_SERVIDOR:18080`
+- API: `http://SEU_SERVIDOR:18500`
 - Ollama interno: acessível apenas dentro da stack por padrão
 
 Na primeira abertura, se ainda não houver modelo instalado, a própria interface web permite baixar modelos recomendados e acompanhar o progresso em tempo real.

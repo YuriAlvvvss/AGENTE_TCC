@@ -121,7 +121,7 @@ Após a primeira subida, use o frontend para baixar um modelo recomendado e ativ
 Você pode alterar as portas sem editar o código:
 
 ```bash
-ROSITA_API_PORT=5001 ROSITA_WEB_PORT=8081 ./start_system.sh --yes
+ROSITA_API_PORT=18501 ROSITA_WEB_PORT=18081 ./start_system.sh --yes
 ```
 
 O script informa as portas efetivas no final da execução.

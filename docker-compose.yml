@@ -20,7 +20,7 @@ services:
     volumes:
       - ./backend/data:/app/backend/data:ro
     ports:
-      - "${ROSITA_API_PORT:-5000}:5000"
+      - "${ROSITA_API_PORT:-18500}:5000"
     depends_on:
       ollama:
         condition: service_healthy
@@ -33,7 +33,7 @@ services:
     depends_on:
       - backend
     ports:
-      - "${ROSITA_WEB_PORT:-8080}:80"
+      - "${ROSITA_WEB_PORT:-18080}:80"
 
   ollama:
     image: ollama/ollama:latest
