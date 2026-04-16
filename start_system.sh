@@ -27,7 +27,7 @@ WEB_PID_FILE="$PID_DIR/web.pid"
 OLLAMA_PID_FILE="$PID_DIR/ollama.pid"
 BACKEND_PORT="${ROSITA_API_PORT:-5000}"
 WEB_PORT="${ROSITA_WEB_PORT:-8080}"
-OLLAMA_MODEL="${ROSITA_OLLAMA_MODEL:-llama3.1:8b}"
+OLLAMA_MODEL="${ROSITA_OLLAMA_MODEL:-}"
 AUTO_YES=0
 SKIP_BROWSER=0
 NO_START=0
@@ -79,7 +79,7 @@ Opções:
 Variáveis úteis:
   ROSITA_API_PORT       porta do backend (padrão: 5000)
   ROSITA_WEB_PORT       porta do frontend (padrão: 8080)
-  ROSITA_OLLAMA_MODEL   modelo Ollama usado pelo sistema (padrão: llama3.1:8b)
+  ROSITA_OLLAMA_MODEL   modelo Ollama preferido (opcional)
 
 Exemplo leve para MiniOS:
   ROSITA_OLLAMA_MODEL=llama3.2:3b ./start_system.sh --yes
@@ -376,24 +376,54 @@ install_ollama() {
 
 ensure_ollama_model() {
   local installed_models
+  local first_installed
   installed_models="$(ollama list 2>/dev/null | awk 'NR>1 {print $1}')"
+  first_installed="$(printf '%s\n' "$installed_models" | sed '/^$/d' | head -n 1)"
 
-  if grep -Fxq "$OLLAMA_MODEL" <<< "$installed_models"; then
+  if [[ -n "$OLLAMA_MODEL" ]] && grep -Fxq "$OLLAMA_MODEL" <<< "$installed_models"; then
+    export ROSITA_OLLAMA_MODEL="$OLLAMA_MODEL"
     log "Modelo Ollama já disponível: $OLLAMA_MODEL"
     return 0
   fi
 
-  log_warn "Modelo configurado não está instalado: $OLLAMA_MODEL"
-  ensure_free_space_gb 6 || return 1
-
-  if ! ask_yes_no "Deseja baixar o modelo $OLLAMA_MODEL agora?"; then
-    log_error "Sem o modelo configurado, o chat não funcionará corretamente."
-    return 1
+  if [[ -z "$OLLAMA_MODEL" ]]; then
+    if [[ -n "$first_installed" ]]; then
+      OLLAMA_MODEL="$first_installed"
+      export ROSITA_OLLAMA_MODEL="$OLLAMA_MODEL"
+      log "Nenhum modelo foi configurado. Usando o primeiro modelo já instalado: $OLLAMA_MODEL"
+    else
+      export ROSITA_OLLAMA_MODEL=""
+      log_warn "Nenhum modelo Ollama instalado foi encontrado. O sistema abrirá e você poderá configurar um modelo depois."
+    fi
+    return 0
   fi
 
-  log "Baixando modelo $OLLAMA_MODEL. Isso pode demorar alguns minutos..."
-  ollama pull "$OLLAMA_MODEL"
-  log "Modelo $OLLAMA_MODEL instalado com sucesso."
+  log_warn "Modelo configurado não está instalado: $OLLAMA_MODEL"
+
+  if [[ -n "$first_installed" ]]; then
+    OLLAMA_MODEL="$first_installed"
+    export ROSITA_OLLAMA_MODEL="$OLLAMA_MODEL"
+    log_warn "Usando um modelo já disponível no Ollama: $OLLAMA_MODEL"
+    return 0
+  fi
+
+  ensure_free_space_gb 6 || {
+    export ROSITA_OLLAMA_MODEL=""
+    OLLAMA_MODEL=""
+    log_warn "O sistema continuará sem modelo ativo por enquanto."
+    return 0
+  }
+
+  if ask_yes_no "Deseja baixar o modelo configurado agora?"; then
+    log "Baixando modelo $OLLAMA_MODEL. Isso pode demorar alguns minutos..."
+    ollama pull "$OLLAMA_MODEL"
+    export ROSITA_OLLAMA_MODEL="$OLLAMA_MODEL"
+    log "Modelo $OLLAMA_MODEL instalado com sucesso."
+  else
+    export ROSITA_OLLAMA_MODEL=""
+    OLLAMA_MODEL=""
+    log_warn "Inicialização continuará sem modelo ativo. Depois, selecione um modelo já instalado pela interface."
+  fi
 }
 
 ensure_ollama() {

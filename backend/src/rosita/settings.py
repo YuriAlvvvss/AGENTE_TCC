@@ -38,7 +38,7 @@ def load_settings() -> Settings:
     return Settings(
         base_dir=backend_dir,
         data_dir=data_dir,
-        ollama_model=os.getenv("ROSITA_OLLAMA_MODEL", "llama3.1:8b"),
+        ollama_model=(os.getenv("ROSITA_OLLAMA_MODEL") or "").strip(),
         max_history=int(os.getenv("ROSITA_MAX_HISTORY", "5")),
         max_input_chars=int(os.getenv("ROSITA_MAX_INPUT_CHARS", "1000")),
         api_host=os.getenv("ROSITA_API_HOST", "0.0.0.0"),
