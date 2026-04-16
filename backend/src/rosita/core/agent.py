@@ -46,7 +46,10 @@ class RositaAgent:
         self.settings = settings
         self.prompt_sistema = prompt_sistema
         self.documentos_contexto = list(documentos_contexto or [])
-        self.client = ollama.Client(host=self.settings.ollama_host)
+        try:
+            self.client = ollama.Client(host=self.settings.ollama_host)
+        except TypeError:
+            self.client = ollama.Client(self.settings.ollama_host)
         self.historico: List[Dict[str, str]] = []
         self.current_model = self._resolver_modelo_inicial()
         self.is_busy = False

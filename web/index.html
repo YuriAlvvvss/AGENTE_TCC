@@ -37,6 +37,9 @@
         <button id="tab-model" class="settings-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="panel-model" data-tab="model">
           Modelo ativo
         </button>
+        <button id="tab-references" class="settings-tab" type="button" role="tab" aria-selected="false" aria-controls="panel-references" data-tab="references">
+          Referências
+        </button>
         <button id="tab-download" class="settings-tab" type="button" role="tab" aria-selected="false" aria-controls="panel-download" data-tab="download">
           Download de modelos
         </button>
@@ -48,6 +51,23 @@
           <select id="model-select" class="model-select"></select>
           <button id="reload-models-btn" class="btn btn-secondary" type="button">Atualizar</button>
         </div>
+      </div>
+
+      <div id="panel-references" class="settings-panel" role="tabpanel" aria-labelledby="tab-references">
+        <div class="references-toolbar">
+          <label for="config-file-select">Arquivo de referência:</label>
+          <select id="config-file-select" class="model-select"></select>
+          <button id="reload-config-btn" class="btn btn-secondary" type="button">Recarregar</button>
+          <button id="save-config-btn" class="btn btn-success" type="button">Salvar referência</button>
+        </div>
+
+        <p id="config-file-status" class="settings-subtitle">Selecione um arquivo para visualizar ou editar.</p>
+        <textarea
+          id="config-file-editor"
+          class="config-editor"
+          placeholder="O conteúdo da referência aparecerá aqui para edição."
+          rows="12"
+        ></textarea>
       </div>
 
       <div id="panel-download" class="settings-panel" role="tabpanel" aria-labelledby="tab-download">

@@ -67,6 +67,24 @@ class AgentModelSelectionTests(unittest.TestCase):
 
         mock_client.assert_called_once_with(host="http://ia-externa:11434")
 
+    @patch("rosita.core.agent.ollama.Client")
+    def test_falls_back_to_positional_client_base_url_when_host_kwarg_is_unsupported(self, mock_client):
+        primary_client = unittest.mock.Mock()
+        primary_client.list.return_value = {"models": []}
+
+        def side_effect(*args, **kwargs):
+            if kwargs.get("host"):
+                raise TypeError("unexpected keyword argument 'host'")
+            return primary_client
+
+        mock_client.side_effect = side_effect
+
+        agent = RositaAgent(self.make_settings(), "prompt")
+
+        self.assertEqual(mock_client.call_args_list[0], unittest.mock.call(host="http://ia-externa:11434"))
+        self.assertEqual(mock_client.call_args_list[1], unittest.mock.call("http://ia-externa:11434"))
+        self.assertIs(agent.client, primary_client)
+
     def test_load_settings_prefers_manual_external_ai_server_address(self):
         with patch.dict(
             os.environ,

@@ -141,8 +141,30 @@ body {
   display: block;
 }
 
+.config-editor {
+  width: 100%;
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 12px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  line-height: 1.5;
+  resize: vertical;
+  min-height: 280px;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.config-editor:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-focus);
+}
+
 .model-row,
-.download-row {
+.download-row,
+.references-toolbar {
   display: flex;
   justify-content: center;
   align-items: center;
@@ -154,9 +176,13 @@ body {
   margin-top: 10px;
 }
 
+.references-toolbar {
+  justify-content: flex-start;
+}
+
 .model-select,
 .model-input,
-.user-input {
+.user-input {  
   padding: 10px 12px;
   border: 1px solid var(--color-border-strong);
   border-radius: 10px;
@@ -458,9 +484,15 @@ body {
 
   .model-select,
   .model-input,
-  .user-input {
+  .user-input,
+  .config-editor {
     width: 100%;
     min-width: 0;
+  }
+
+  .references-toolbar {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .chat-container {

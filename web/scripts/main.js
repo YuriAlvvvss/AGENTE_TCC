@@ -17,6 +17,11 @@ class RositaApp {
     this.loadingOverlay = document.getElementById("loading-overlay");
     this.loadingText = document.getElementById("loading-text");
     this.tokenStatsEl = document.getElementById("token-stats");
+    this.configFileSelect = document.getElementById("config-file-select");
+    this.reloadConfigBtn = document.getElementById("reload-config-btn");
+    this.saveConfigBtn = document.getElementById("save-config-btn");
+    this.configFileEditor = document.getElementById("config-file-editor");
+    this.configFileStatusEl = document.getElementById("config-file-status");
     this.settingsTabs = Array.from(document.querySelectorAll(".settings-tab"));
     this.settingsPanels = Array.from(document.querySelectorAll(".settings-panel"));
 
@@ -27,11 +32,14 @@ class RositaApp {
     this.currentTokens = [];
     this.hasShownEmptyModelsTip = false;
     this.modelRefreshTimer = null;
+    this.selectedConfigFile = "";
+    this.configFilesLoaded = false;
 
     this.bindEvents();
     this.updateControls();
     this.verificarStatus();
     this.carregarModelos();
+    this.carregarArquivosConfiguracao(true);
     this.adicionarMensagem("Olá! Sou a ROSITA. Como posso ajudar?", "assistant");
   }
 
@@ -44,6 +52,9 @@ class RositaApp {
     this.settingsTabs.forEach((tab) => {
       tab.addEventListener("click", () => this.switchSettingsTab(tab.dataset.tab));
     });
+    this.configFileSelect?.addEventListener("change", () => this.carregarArquivoConfiguracao());
+    this.reloadConfigBtn?.addEventListener("click", () => this.carregarArquivosConfiguracao());
+    this.saveConfigBtn?.addEventListener("click", () => this.salvarArquivoConfiguracao());
 
     this.userInput.addEventListener("keypress", (e) => {
       if (e.key === "Enter" && !this.isAwaitingResponse && this.hasActiveModel) {
@@ -60,6 +71,7 @@ class RositaApp {
 
   updateControls() {
     const chatDisabled = this.isAwaitingResponse || this.isDownloadingModel || !this.hasActiveModel;
+    const configDisabled = this.isAwaitingResponse || this.isDownloadingModel;
     this.userInput.disabled = chatDisabled;
     this.sendBtn.disabled = chatDisabled;
     this.modelSelect.disabled = this.isAwaitingResponse || this.isDownloadingModel || !this.hasInstalledModels;
@@ -67,6 +79,19 @@ class RositaApp {
     this.clearBtn.disabled = this.isAwaitingResponse;
     this.downloadInput.disabled = this.isAwaitingResponse || this.isDownloadingModel;
     this.downloadBtn.disabled = this.isAwaitingResponse || this.isDownloadingModel;
+
+    if (this.configFileSelect) {
+      this.configFileSelect.disabled = configDisabled || !this.configFilesLoaded;
+    }
+    if (this.reloadConfigBtn) {
+      this.reloadConfigBtn.disabled = configDisabled;
+    }
+    if (this.configFileEditor) {
+      this.configFileEditor.disabled = configDisabled || !this.selectedConfigFile;
+    }
+    if (this.saveConfigBtn) {
+      this.saveConfigBtn.disabled = configDisabled || !this.selectedConfigFile;
+    }
   }
 
   switchSettingsTab(tabName) {
@@ -79,6 +104,10 @@ class RositaApp {
     this.settingsPanels.forEach((panel) => {
       panel.classList.toggle("is-active", panel.id === `panel-${tabName}`);
     });
+
+    if (tabName === "references" && !this.configFilesLoaded) {
+      this.carregarArquivosConfiguracao();
+    }
   }
 
   async verificarStatus() {
@@ -187,6 +216,89 @@ class RositaApp {
     this.downloadProgressWrap.classList.add("hidden");
     this.downloadProgressBar.style.width = "0%";
     this.downloadStatusEl.textContent = "Preparando download...";
+  }
+
+  setConfigStatus(message) {
+    if (this.configFileStatusEl) {
+      this.configFileStatusEl.textContent = message;
+    }
+  }
+
+  async carregarArquivosConfiguracao(silent = false) {
+    try {
+      if (!silent) {
+        this.setConfigStatus("Carregando referências disponíveis...");
+      }
+
+      const payload = await window.rositaApi.listarArquivosConfiguracao();
+      const files = payload.files || [];
+      this.configFilesLoaded = files.length > 0;
+      this.configFileSelect.innerHTML = "";
+
+      if (!files.length) {
+        const option = document.createElement("option");
+        option.value = "";
+        option.textContent = "Nenhum arquivo de referência";
+        option.selected = true;
+        this.configFileSelect.appendChild(option);
+        this.selectedConfigFile = "";
+        this.configFileEditor.value = "";
+        this.setConfigStatus("Nenhuma referência editável foi encontrada na pasta de dados.");
+        this.updateControls();
+        return;
+      }
+
+      for (const file of files) {
+        const option = document.createElement("option");
+        option.value = file;
+        option.textContent = file;
+        this.configFileSelect.appendChild(option);
+      }
+
+      const targetFile = files.includes(this.selectedConfigFile) ? this.selectedConfigFile : files[0];
+      this.configFileSelect.value = targetFile;
+      await this.carregarArquivoConfiguracao(targetFile);
+    } catch (err) {
+      this.setConfigStatus(`Erro ao carregar referências: ${err.message || String(err)}`);
+    } finally {
+      this.updateControls();
+    }
+  }
+
+  async carregarArquivoConfiguracao(filename = null) {
+    const selected = filename || this.configFileSelect?.value || "";
+    if (!selected) {
+      this.selectedConfigFile = "";
+      this.configFileEditor.value = "";
+      this.setConfigStatus("Selecione um arquivo para visualizar ou editar.");
+      this.updateControls();
+      return;
+    }
+
+    try {
+      this.setConfigStatus(`Carregando ${selected}...`);
+      const payload = await window.rositaApi.lerArquivoConfiguracao(selected);
+      this.selectedConfigFile = payload.filename;
+      this.configFileEditor.value = payload.content || "";
+      this.setConfigStatus(`Editando ${payload.filename}. As alterações impactam o contexto da ROSITA.`);
+    } catch (err) {
+      this.setConfigStatus(`Erro ao abrir referência: ${err.message || String(err)}`);
+    } finally {
+      this.updateControls();
+    }
+  }
+
+  async salvarArquivoConfiguracao() {
+    if (!this.selectedConfigFile) return;
+
+    try {
+      this.setConfigStatus(`Salvando ${this.selectedConfigFile}...`);
+      await window.rositaApi.salvarArquivoConfiguracao(this.selectedConfigFile, this.configFileEditor.value || "");
+      this.setConfigStatus(`Referência ${this.selectedConfigFile} salva com sucesso.`);
+      await this.verificarStatus();
+    } catch (err) {
+      this.setConfigStatus(`Erro ao salvar referência: ${err.message || String(err)}`);
+    }
   }
 
   async carregarModelos(silent = false) {
