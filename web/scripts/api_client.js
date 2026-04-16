@@ -133,6 +133,44 @@ class RositaApiClient {
     return res.json();
   }
 
+  async listarArquivosConfiguracao() {
+    const res = await fetch(`${this.baseUrl}/api/config/files`);
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(text || `Erro HTTP ${res.status}`);
+    }
+    return res.json();
+  }
+
+  async lerArquivoConfiguracao(filename) {
+    const res = await fetch(`${this.baseUrl}/api/config/files/${encodeURIComponent(filename)}`);
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(text || `Erro HTTP ${res.status}`);
+    }
+    return res.json();
+  }
+
+  async salvarArquivoConfiguracao(filename, content) {
+    const res = await fetch(`${this.baseUrl}/api/config/files/${encodeURIComponent(filename)}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content }),
+    });
+    if (!res.ok) {
+      let erro = `Erro HTTP ${res.status}`;
+      try {
+        const payload = await res.json();
+        erro = payload.erro || erro;
+      } catch (_) {
+        const text = await res.text();
+        if (text) erro = text;
+      }
+      throw new Error(erro);
+    }
+    return res.json();
+  }
+
   async limparHistorico() {
     const res = await fetch(`${this.baseUrl}/api/limpar`, { method: "POST" });
     if (!res.ok) throw new Error(`Erro HTTP ${res.status}`);

@@ -13,8 +13,13 @@
       <p class="subtitle">Assistente Escolar - PEI Rosa Bonfiglioli</p>
       <div id="status" class="status status--offline">Verificando...</div>
       <div id="server-info" class="server-info">Conectando ao servidor de IA...</div>
+      <div class="top-actions">
+        <button id="settings-btn" class="btn btn-secondary" type="button">Configurações</button>
+      </div>
 
-      <section class="model-manager">
+      <details class="model-manager">
+        <summary class="model-manager-summary">Configurações do modelo</summary>
+
         <div class="model-row">
           <label for="model-select">Modelo ativo:</label>
           <select id="model-select" class="model-select"></select>
@@ -40,7 +45,7 @@
             <div id="download-progress-bar" class="progress-bar-fill"></div>
           </div>
         </div>
-      </section>
+      </details>
 
       <div id="token-stats" class="token-stats">Tokens: 0</div>
     </header>
@@ -53,6 +58,25 @@
         <button id="clear-btn" class="btn btn-clear">Limpar</button>
       </div>
     </main>
+  </div>
+
+  <div id="config-modal" class="modal-overlay hidden" aria-live="polite">
+    <div class="modal-card config-card">
+      <div class="modal-header">
+        <h2>Configuração dos documentos</h2>
+        <button id="close-settings-btn" class="btn btn-clear" type="button">Fechar</button>
+      </div>
+      <p class="config-hint">Edite os arquivos da base oficial. As alterações passam a valer nas próximas respostas.</p>
+      <div class="config-toolbar">
+        <select id="config-file-select" class="model-select"></select>
+        <button id="reload-config-btn" class="btn btn-secondary" type="button">Recarregar</button>
+      </div>
+      <textarea id="config-editor" class="config-editor" spellcheck="false"></textarea>
+      <div id="config-status" class="config-status">Selecione um arquivo para editar.</div>
+      <div class="config-actions">
+        <button id="save-config-btn" class="btn btn-success" type="button">Salvar arquivo</button>
+      </div>
+    </div>
   </div>
 
   <div id="loading-overlay" class="loading-overlay hidden" aria-live="polite">

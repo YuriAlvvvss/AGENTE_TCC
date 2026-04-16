@@ -9,7 +9,7 @@ IFS=$'\n\t'
 # 1) valida estrutura do projeto
 # 2) detecta Python 3.8+ e instala dependências de sistema
 # 3) cria/atualiza .venv e instala requirements com retry
-# 4) garante Ollama em execução e baixa o modelo configurado
+# 4) garante Ollama em execução sem carregar modelos automaticamente
 # 5) inicia backend e frontend com checagem real de saúde
 # ==========================================================
 
@@ -25,9 +25,11 @@ OLLAMA_LOG="$LOG_DIR/ollama.log"
 BACKEND_PID_FILE="$PID_DIR/backend.pid"
 WEB_PID_FILE="$PID_DIR/web.pid"
 OLLAMA_PID_FILE="$PID_DIR/ollama.pid"
-BACKEND_PORT="${ROSITA_API_PORT:-5000}"
-WEB_PORT="${ROSITA_WEB_PORT:-8080}"
+BACKEND_PORT="${ROSITA_API_PORT:-18500}"
+WEB_PORT="${ROSITA_WEB_PORT:-18080}"
 OLLAMA_MODEL="${ROSITA_OLLAMA_MODEL:-}"
+OLLAMA_HOST="${ROSITA_OLLAMA_HOST:-http://127.0.0.1:11434}"
+USE_LOCAL_OLLAMA=1
 AUTO_YES=0
 SKIP_BROWSER=0
 NO_START=0
@@ -77,13 +79,55 @@ Opções:
   --help, -h        mostra esta ajuda
 
 Variáveis úteis:
-  ROSITA_API_PORT       porta do backend (padrão: 5000)
-  ROSITA_WEB_PORT       porta do frontend (padrão: 8080)
-  ROSITA_OLLAMA_MODEL   modelo Ollama preferido (opcional)
+  ROSITA_API_PORT       porta do backend local (padrão: 18500)
+  ROSITA_WEB_PORT       porta do frontend local (padrão: 18080)
+  ROSITA_OLLAMA_HOST    host do Ollama local ou externo
+  ROSITA_OLLAMA_MODEL   modelo Ollama sugerido para seleção manual (opcional)
 
 Exemplo leve para MiniOS:
   ROSITA_OLLAMA_MODEL=llama3.2:3b ./start_system.sh --yes
 EOF
+}
+
+load_env_file() {
+  if [[ ! -f "$ROOT_DIR/.env" ]]; then
+    return 0
+  fi
+
+  while IFS='=' read -r raw_key raw_value; do
+    [[ -z "${raw_key// }" ]] && continue
+    [[ "$raw_key" =~ ^[[:space:]]*# ]] && continue
+
+    local key value
+    key="${raw_key%%[[:space:]]*}"
+    value="${raw_value#"${raw_value%%[![:space:]]*}"}"
+
+    if [[ -z "${!key+x}" ]]; then
+      export "$key=$value"
+    fi
+  done < "$ROOT_DIR/.env"
+}
+
+resolve_runtime_config() {
+  BACKEND_PORT="${ROSITA_API_PORT:-18500}"
+  WEB_PORT="${ROSITA_WEB_PORT:-18080}"
+  OLLAMA_MODEL="${ROSITA_OLLAMA_MODEL:-}"
+  OLLAMA_HOST="${ROSITA_OLLAMA_HOST:-http://127.0.0.1:11434}"
+
+  case "$OLLAMA_HOST" in
+    http://ollama:11434|http://localhost:11434|http://127.0.0.1:11434)
+      USE_LOCAL_OLLAMA=1
+      OLLAMA_HOST="http://127.0.0.1:11434"
+      ;;
+    *)
+      USE_LOCAL_OLLAMA=0
+      ;;
+  esac
+
+  export ROSITA_API_PORT="$BACKEND_PORT"
+  export ROSITA_WEB_PORT="$WEB_PORT"
+  export ROSITA_OLLAMA_HOST="$OLLAMA_HOST"
+  export ROSITA_OLLAMA_MODEL=""
 }
 
 parse_args() {
@@ -376,57 +420,29 @@ install_ollama() {
 
 ensure_ollama_model() {
   local installed_models
-  local first_installed
   installed_models="$(ollama list 2>/dev/null | awk 'NR>1 {print $1}')"
-  first_installed="$(printf '%s\n' "$installed_models" | sed '/^$/d' | head -n 1)"
 
-  if [[ -n "$OLLAMA_MODEL" ]] && grep -Fxq "$OLLAMA_MODEL" <<< "$installed_models"; then
-    export ROSITA_OLLAMA_MODEL="$OLLAMA_MODEL"
-    log "Modelo Ollama já disponível: $OLLAMA_MODEL"
-    return 0
-  fi
+  export ROSITA_OLLAMA_MODEL=""
 
-  if [[ -z "$OLLAMA_MODEL" ]]; then
-    if [[ -n "$first_installed" ]]; then
-      OLLAMA_MODEL="$first_installed"
-      export ROSITA_OLLAMA_MODEL="$OLLAMA_MODEL"
-      log "Nenhum modelo foi configurado. Usando o primeiro modelo já instalado: $OLLAMA_MODEL"
-    else
-      export ROSITA_OLLAMA_MODEL=""
-      log_warn "Nenhum modelo Ollama instalado foi encontrado. O sistema abrirá e você poderá configurar um modelo depois."
-    fi
-    return 0
-  fi
-
-  log_warn "Modelo configurado não está instalado: $OLLAMA_MODEL"
-
-  if [[ -n "$first_installed" ]]; then
-    OLLAMA_MODEL="$first_installed"
-    export ROSITA_OLLAMA_MODEL="$OLLAMA_MODEL"
-    log_warn "Usando um modelo já disponível no Ollama: $OLLAMA_MODEL"
-    return 0
-  fi
-
-  ensure_free_space_gb 6 || {
-    export ROSITA_OLLAMA_MODEL=""
-    OLLAMA_MODEL=""
-    log_warn "O sistema continuará sem modelo ativo por enquanto."
-    return 0
-  }
-
-  if ask_yes_no "Deseja baixar o modelo configurado agora?"; then
-    log "Baixando modelo $OLLAMA_MODEL. Isso pode demorar alguns minutos..."
-    ollama pull "$OLLAMA_MODEL"
-    export ROSITA_OLLAMA_MODEL="$OLLAMA_MODEL"
-    log "Modelo $OLLAMA_MODEL instalado com sucesso."
+  if [[ -n "$installed_models" ]]; then
+    log "Modelos Ollama detectados no servidor. Nenhum será carregado automaticamente; a ativação será manual pela interface."
   else
-    export ROSITA_OLLAMA_MODEL=""
-    OLLAMA_MODEL=""
-    log_warn "Inicialização continuará sem modelo ativo. Depois, selecione um modelo já instalado pela interface."
+    log_warn "Nenhum modelo Ollama instalado foi encontrado. O download deverá ser feito manualmente pela interface."
+  fi
+
+  if [[ -n "$OLLAMA_MODEL" ]]; then
+    log "Modelo preferido informado em ROSITA_OLLAMA_MODEL: $OLLAMA_MODEL"
+    log "Essa configuração será apenas sugestiva; o projeto não fará download nem carregamento automático."
   fi
 }
 
 ensure_ollama() {
+  if (( USE_LOCAL_OLLAMA == 0 )); then
+    log "Servidor de IA externo configurado: $OLLAMA_HOST"
+    log "Ollama local não será iniciado por este script."
+    return 0
+  fi
+
   if ! command_exists ollama; then
     log_warn "Ollama não encontrado no PATH."
     if ask_yes_no "Deseja instalar o Ollama automaticamente agora?"; then
@@ -527,7 +543,7 @@ prepare_virtualenv() {
 
 start_backend() {
   local backend_url="http://127.0.0.1:$BACKEND_PORT/"
-  local backend_cmd="cd \"$ROOT_DIR/backend\" && export PYTHONUNBUFFERED=1 && \"$VENV_PY\" app.py"
+  local backend_cmd="cd \"$ROOT_DIR/backend\" && export PYTHONUNBUFFERED=1 && export ROSITA_API_HOST=127.0.0.1 && export ROSITA_API_PORT=$BACKEND_PORT && export ROSITA_OLLAMA_HOST=$OLLAMA_HOST && export ROSITA_OLLAMA_MODEL= && \"$VENV_PY\" app.py"
 
   if http_check "$backend_url"; then
     log "Backend já está respondendo em $backend_url"
@@ -603,12 +619,16 @@ open_browser() {
 
 main() {
   parse_args "$@"
+  load_env_file
+  resolve_runtime_config
 
   log "============================================================"
   log "ROSITA startup iniciado."
   log "Raiz do projeto: $ROOT_DIR"
   log "Logs em: $LOG_DIR"
-  log "Modelo Ollama configurado: $OLLAMA_MODEL"
+  log "Porta backend local: $BACKEND_PORT"
+  log "Porta frontend local: $WEB_PORT"
+  log "Servidor de IA configurado: $OLLAMA_HOST"
   log "============================================================"
 
   log "PASSO 1/6 - Validando estrutura mínima do projeto..."
@@ -623,7 +643,7 @@ main() {
   prepare_virtualenv || fatal "Falha ao preparar o ambiente virtual ou instalar dependências."
   log "PASSO 3/6 - OK."
 
-  log "PASSO 4/6 - Verificando Ollama e modelo configurado..."
+  log "PASSO 4/6 - Verificando Ollama e disponibilidade de modelos..."
   ensure_ollama || fatal "Falha ao configurar o Ollama."
   log "PASSO 4/6 - OK."
 
@@ -635,7 +655,8 @@ main() {
 Dependências validadas com sucesso.
 Backend configurado na porta: $BACKEND_PORT
 Web configurada na porta:     $WEB_PORT
-Modelo Ollama:                $OLLAMA_MODEL
+Servidor de IA:               $OLLAMA_HOST
+Modelos:                      seleção manual via interface
 Logs:                         $LOG_DIR
 ============================================
 EOF
@@ -656,8 +677,8 @@ EOF
 Sistema iniciado com sucesso.
 Backend: http://127.0.0.1:$BACKEND_PORT
 Web:     http://127.0.0.1:$WEB_PORT
-Ollama:  http://127.0.0.1:11434
-Modelo:  $OLLAMA_MODEL
+IA:      $OLLAMA_HOST
+Modelo:  seleção manual via interface
 Logs:    $LOG_DIR
 ============================================
 EOF

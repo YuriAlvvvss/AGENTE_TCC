@@ -12,7 +12,7 @@ O fluxo agora está mais estável para ambientes leves, inclusive MiniOS rodando
 4. atualiza pip, setuptools e wheel com tentativas de repetição;
 5. instala as dependências do backend;
 6. garante que o Ollama esteja ativo;
-7. verifica se o modelo configurado já existe e faz o download quando necessário;
+7. verifica a disponibilidade do Ollama e deixa a escolha do modelo para o usuário;
 8. inicia backend e frontend com checagem real de saúde;
 9. grava logs persistentes na pasta de logs do projeto.
 
@@ -65,9 +65,10 @@ Opções principais:
 
 ## Endereços após a inicialização
 
-- Backend: http://127.0.0.1:5000
-- Web: http://127.0.0.1:8080
-- Ollama: http://127.0.0.1:11434
+- Backend: http://127.0.0.1:18500
+- Web: http://127.0.0.1:18080
+- Ollama local: http://127.0.0.1:11434
+- ou servidor de IA externo, se configurado no `.env`
 
 ## Logs
 
@@ -114,7 +115,8 @@ No Coolify, importe o projeto e selecione o `docker-compose.yml` da raiz do repo
 
 Para usar GPU NVIDIA no Ollama interno, o servidor precisa ter o driver da NVIDIA e o NVIDIA Container Toolkit instalados. Com isso, a stack passa a usar a GPU automaticamente. Se quiser escolher uma GPU específica, ajuste `NVIDIA_VISIBLE_DEVICES` no `.env`.
 
-Após a primeira subida, use o frontend para baixar um modelo recomendado e ativá-lo sem precisar entrar no container manualmente.
+Após a primeira subida, use o frontend para baixar um modelo recomendado e ativá-lo manualmente, sem precisar entrar no container.
+Nenhum modelo é baixado ou carregado automaticamente pelo projeto.
 
 ## Ajuste de portas
 

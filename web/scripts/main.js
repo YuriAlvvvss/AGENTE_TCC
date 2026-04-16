@@ -6,6 +6,14 @@ class RositaApp {
     this.clearBtn = document.getElementById("clear-btn");
     this.statusEl = document.getElementById("status");
     this.serverInfoEl = document.getElementById("server-info");
+    this.settingsBtn = document.getElementById("settings-btn");
+    this.configModal = document.getElementById("config-modal");
+    this.closeSettingsBtn = document.getElementById("close-settings-btn");
+    this.configFileSelect = document.getElementById("config-file-select");
+    this.reloadConfigBtn = document.getElementById("reload-config-btn");
+    this.configEditor = document.getElementById("config-editor");
+    this.configStatusEl = document.getElementById("config-status");
+    this.saveConfigBtn = document.getElementById("save-config-btn");
     this.modelSelect = document.getElementById("model-select");
     this.reloadModelsBtn = document.getElementById("reload-models-btn");
     this.downloadInput = document.getElementById("model-download-input");
@@ -21,9 +29,11 @@ class RositaApp {
     this.isAwaitingResponse = false;
     this.isDownloadingModel = false;
     this.hasInstalledModels = false;
+    this.hasActiveModel = false;
     this.currentTokens = [];
     this.hasShownEmptyModelsTip = false;
     this.modelRefreshTimer = null;
+    this.currentConfigFile = "";
 
     this.bindEvents();
     this.updateControls();
@@ -37,10 +47,15 @@ class RositaApp {
     this.clearBtn.addEventListener("click", () => this.limparChat());
     this.reloadModelsBtn.addEventListener("click", () => this.carregarModelos());
     this.downloadBtn.addEventListener("click", () => this.baixarModelo());
+    this.settingsBtn.addEventListener("click", () => this.abrirConfiguracoes());
+    this.closeSettingsBtn.addEventListener("click", () => this.fecharConfiguracoes());
+    this.reloadConfigBtn.addEventListener("click", () => this.carregarArquivosConfiguracao());
+    this.configFileSelect.addEventListener("change", () => this.carregarConteudoArquivoConfiguracao());
+    this.saveConfigBtn.addEventListener("click", () => this.salvarConfiguracoes());
     this.modelSelect.addEventListener("change", () => this.selecionarModelo());
 
     this.userInput.addEventListener("keypress", (e) => {
-      if (e.key === "Enter" && !this.isAwaitingResponse && this.hasInstalledModels) {
+      if (e.key === "Enter" && !this.isAwaitingResponse && this.hasActiveModel) {
         this.enviarMensagem();
       }
     });
@@ -53,7 +68,7 @@ class RositaApp {
   }
 
   updateControls() {
-    const chatDisabled = this.isAwaitingResponse || this.isDownloadingModel || !this.hasInstalledModels;
+    const chatDisabled = this.isAwaitingResponse || this.isDownloadingModel || !this.hasActiveModel;
     this.userInput.disabled = chatDisabled;
     this.sendBtn.disabled = chatDisabled;
     this.modelSelect.disabled = this.isAwaitingResponse || this.isDownloadingModel || !this.hasInstalledModels;
@@ -61,14 +76,22 @@ class RositaApp {
     this.clearBtn.disabled = this.isAwaitingResponse;
     this.downloadInput.disabled = this.isAwaitingResponse || this.isDownloadingModel;
     this.downloadBtn.disabled = this.isAwaitingResponse || this.isDownloadingModel;
+    this.settingsBtn.disabled = false;
   }
 
   async verificarStatus() {
     try {
       const payload = await window.rositaApi.obterStatus();
-      this.statusEl.textContent = "Online";
+      const docs = payload.documentos_contexto || [];
+      const contexto = docs.length
+        ? `Contexto carregado: ${docs.length} documento(s)`
+        : "Contexto documental não encontrado";
+
+      this.statusEl.textContent = payload.modelo_atual ? "Online" : "Online • sem modelo ativo";
       this.statusEl.className = "status status--online";
-      this.serverInfoEl.textContent = `Servidor de IA: ${payload.servidor_ia}`;
+      this.serverInfoEl.textContent = payload.modelo_atual
+        ? `Servidor de IA: ${payload.servidor_ia} • Modelo ativo: ${payload.modelo_atual} • ${contexto}`
+        : `Servidor de IA: ${payload.servidor_ia} • Selecione um modelo para começar • ${contexto}`;
     } catch {
       this.statusEl.textContent = "Offline";
       this.statusEl.className = "status status--offline";
@@ -79,10 +102,24 @@ class RositaApp {
   adicionarMensagem(texto, tipo) {
     const wrap = document.createElement("div");
     wrap.className = `message ${tipo}`;
+
+    const body = document.createElement("div");
+    body.className = "message-body";
+
     const content = document.createElement("div");
     content.className = "message-content";
     content.textContent = texto;
-    wrap.appendChild(content);
+
+    const meta = document.createElement("div");
+    meta.className = "message-meta";
+    meta.textContent = new Date().toLocaleTimeString("pt-BR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    body.appendChild(content);
+    body.appendChild(meta);
+    wrap.appendChild(body);
     this.chatContainer.appendChild(wrap);
     this.chatContainer.scrollTop = this.chatContainer.scrollHeight;
     return content;
@@ -162,6 +199,7 @@ class RositaApp {
       this.renderSuggestedModels(payload.recommended_models || []);
       this.modelSelect.innerHTML = "";
       this.hasInstalledModels = models.length > 0;
+      this.hasActiveModel = Boolean(current);
 
       if (!models.length) {
         const option = document.createElement("option");
@@ -178,6 +216,12 @@ class RositaApp {
           this.hasShownEmptyModelsTip = true;
         }
       } else {
+        const placeholder = document.createElement("option");
+        placeholder.value = "";
+        placeholder.textContent = current ? "Modelo ativo" : "Selecione um modelo instalado";
+        placeholder.selected = !current;
+        this.modelSelect.appendChild(placeholder);
+
         for (const model of models) {
           const option = document.createElement("option");
           option.value = model;
@@ -220,7 +264,9 @@ class RositaApp {
     this.updateControls();
     try {
       await window.rositaApi.selecionarModelo(model);
+      this.hasActiveModel = true;
       this.adicionarMensagem(`Modelo ativo alterado para: ${model}`, "assistant");
+      await this.verificarStatus();
     } catch (err) {
       this.adicionarMensagem(`Erro ao trocar modelo: ${err.message || String(err)}`, "assistant");
       await this.carregarModelos();
@@ -251,11 +297,12 @@ class RositaApp {
         this.setDownloadProgress(percentual, `${model} • ${status}${percentual ? ` (${percentual}%)` : ""}`);
       });
 
-      this.setDownloadProgress(100, `Modelo ${model} pronto para uso.`);
-      this.adicionarMensagem(`Modelo instalado com sucesso: ${model}`, "assistant");
+      this.setDownloadProgress(100, `Modelo ${model} baixado com sucesso.`);
+      this.adicionarMensagem(
+        `Modelo instalado com sucesso: ${model}. Agora selecione esse modelo na lista para ativá-lo.`,
+        "assistant"
+      );
       await this.carregarModelos();
-      this.modelSelect.value = model;
-      await this.selecionarModelo();
     } catch (err) {
       this.adicionarMensagem(`Erro ao baixar modelo: ${err.message || String(err)}`, "assistant");
       this.setDownloadProgress(0, `Falha ao baixar ${model}`);
@@ -268,7 +315,7 @@ class RositaApp {
 
   async enviarMensagem() {
     const texto = (this.userInput.value || "").trim();
-    if (!texto || this.isAwaitingResponse || !this.hasInstalledModels) return;
+    if (!texto || this.isAwaitingResponse || !this.hasActiveModel) return;
 
     this.currentTokens = [];
     this.atualizarTokenStats();
@@ -277,7 +324,7 @@ class RositaApp {
 
     this.adicionarMensagem(texto, "user");
     this.userInput.value = "";
-    const content = this.adicionarMensagem("ROSITA: ", "assistant");
+    const content = this.adicionarMensagem("", "assistant");
 
     try {
       await window.rositaApi.enviarMensagem(texto, (chunk) => {
@@ -292,6 +339,83 @@ class RositaApp {
     } finally {
       this.isAwaitingResponse = false;
       this.updateControls();
+    }
+  }
+
+  async abrirConfiguracoes() {
+    this.configModal.classList.remove("hidden");
+    await this.carregarArquivosConfiguracao();
+  }
+
+  fecharConfiguracoes() {
+    this.configModal.classList.add("hidden");
+  }
+
+  async carregarArquivosConfiguracao() {
+    this.configStatusEl.textContent = "Carregando arquivos editáveis...";
+    try {
+      const payload = await window.rositaApi.listarArquivosConfiguracao();
+      const files = payload.files || [];
+      this.configFileSelect.innerHTML = "";
+
+      if (!files.length) {
+        const option = document.createElement("option");
+        option.value = "";
+        option.textContent = "Nenhum arquivo editável disponível";
+        this.configFileSelect.appendChild(option);
+        this.configEditor.value = "";
+        this.currentConfigFile = "";
+        this.configStatusEl.textContent = "Nenhum arquivo de configuração disponível.";
+        return;
+      }
+
+      for (const file of files) {
+        const option = document.createElement("option");
+        option.value = file;
+        option.textContent = file;
+        this.configFileSelect.appendChild(option);
+      }
+
+      this.currentConfigFile = this.configFileSelect.value;
+      await this.carregarConteudoArquivoConfiguracao();
+    } catch (err) {
+      this.configStatusEl.textContent = `Erro ao listar arquivos: ${err.message || String(err)}`;
+    }
+  }
+
+  async carregarConteudoArquivoConfiguracao() {
+    const filename = this.configFileSelect.value;
+    this.currentConfigFile = filename;
+    if (!filename) {
+      this.configEditor.value = "";
+      return;
+    }
+
+    this.configStatusEl.textContent = `Carregando ${filename}...`;
+    try {
+      const payload = await window.rositaApi.lerArquivoConfiguracao(filename);
+      this.configEditor.value = payload.content || "";
+      this.configStatusEl.textContent = `${filename} carregado para edição.`;
+    } catch (err) {
+      this.configStatusEl.textContent = `Erro ao abrir arquivo: ${err.message || String(err)}`;
+    }
+  }
+
+  async salvarConfiguracoes() {
+    const filename = this.currentConfigFile || this.configFileSelect.value;
+    if (!filename) return;
+
+    this.configStatusEl.textContent = `Salvando ${filename}...`;
+    this.saveConfigBtn.disabled = true;
+    try {
+      await window.rositaApi.salvarArquivoConfiguracao(filename, this.configEditor.value);
+      this.configStatusEl.textContent = `${filename} salvo com sucesso. O contexto da IA foi atualizado.`;
+      this.adicionarMensagem(`As configurações do arquivo ${filename} foram salvas com sucesso.`, "assistant");
+      await this.verificarStatus();
+    } catch (err) {
+      this.configStatusEl.textContent = `Erro ao salvar arquivo: ${err.message || String(err)}`;
+    } finally {
+      this.saveConfigBtn.disabled = false;
     }
   }
 

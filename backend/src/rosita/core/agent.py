@@ -37,9 +37,15 @@ RECOMMENDED_MODELS: list[dict[str, str]] = [
 class RositaAgent:
     """Mantém histórico e gera respostas com streaming via Ollama."""
 
-    def __init__(self, settings: Settings, prompt_sistema: str) -> None:
+    def __init__(
+        self,
+        settings: Settings,
+        prompt_sistema: str,
+        documentos_contexto: List[str] | None = None,
+    ) -> None:
         self.settings = settings
         self.prompt_sistema = prompt_sistema
+        self.documentos_contexto = list(documentos_contexto or [])
         self.client = ollama.Client(host=self.settings.ollama_host)
         self.historico: List[Dict[str, str]] = []
         self.current_model = self._resolver_modelo_inicial()
@@ -57,20 +63,7 @@ class RositaAgent:
         )
 
     def _resolver_modelo_inicial(self) -> str:
-        """Seleciona um modelo realmente disponível ao iniciar o agente."""
-        configurado = (self.settings.ollama_model or "").strip()
-
-        try:
-            instalados = self.listar_modelos_instalados()
-        except Exception:
-            return configurado
-
-        if configurado and configurado in instalados:
-            return configurado
-
-        if instalados:
-            return instalados[0]
-
+        """Inicia sem modelo ativo para manter o controle totalmente manual pelo usuário."""
         return ""
 
     def processar_pergunta(self, pergunta: str) -> Generator[str, None, None]:
@@ -129,6 +122,11 @@ class RositaAgent:
         """Retorna o nome do modelo atual do agente."""
         return self.current_model
 
+    def atualizar_contexto(self, prompt_sistema: str, documentos_contexto: List[str]) -> None:
+        """Atualiza o contexto documental mantido em memória para respostas futuras."""
+        self.prompt_sistema = prompt_sistema
+        self.documentos_contexto = list(documentos_contexto)
+
     def listar_modelos_instalados(self) -> List[str]:
         """Lista modelos disponíveis localmente no Ollama."""
         data = self.client.list()
@@ -150,6 +148,30 @@ class RositaAgent:
     def obter_modelos_recomendados(self) -> List[Dict[str, str]]:
         """Retorna uma lista curta de modelos recomendados para instalação."""
         return list(RECOMMENDED_MODELS)
+
+    def _descarregar_modelo_atual(self) -> None:
+        """Libera o modelo ativo antes de carregar outro."""
+        if not self.current_model:
+            return
+
+        try:
+            self.client.generate(
+                model=self.current_model,
+                prompt="",
+                stream=False,
+                keep_alive=0,
+            )
+        except Exception:
+            if self._usa_cli_local():
+                try:
+                    subprocess.run(
+                        ["ollama", "stop", self.current_model],
+                        check=False,
+                        capture_output=True,
+                        text=True,
+                    )
+                except Exception:
+                    pass
 
     def baixar_modelo(self, novo_modelo: str) -> Generator[Dict[str, Any], None, None]:
         """Baixa um modelo no Ollama com eventos de progresso para o frontend."""
@@ -198,11 +220,10 @@ class RositaAgent:
                     "modelo": modelo,
                 }
 
-            self.current_model = modelo
-            self.download_status = "Concluído"
+            self.download_status = "Baixado. Selecione o modelo para ativar"
             self.download_percent = 100
             yield {
-                "status": "Concluído",
+                "status": "Baixado. Selecione o modelo para ativar",
                 "percentual": 100,
                 "modelo": modelo,
                 "finalizado": True,
@@ -223,6 +244,8 @@ class RositaAgent:
         """
         if self.is_busy:
             raise RuntimeError("Não é possível trocar modelo durante uma resposta em andamento.")
+        if self.is_downloading:
+            raise RuntimeError("Aguarde o fim do download atual antes de trocar o modelo.")
 
         modelo = (novo_modelo or "").strip()
         if not modelo:
@@ -235,17 +258,8 @@ class RositaAgent:
         if modelo == self.current_model:
             return self.current_model
 
-        if self.current_model and self._usa_cli_local():
-            try:
-                subprocess.run(
-                    ["ollama", "stop", self.current_model],
-                    check=False,
-                    capture_output=True,
-                    text=True,
-                )
-            except Exception:
-                # Não bloqueia a troca em dev caso o stop falhe.
-                pass
+        if self.current_model:
+            self._descarregar_modelo_atual()
 
         self.client.generate(model=modelo, prompt=".", stream=False, options={"num_predict": 1})
         self.current_model = modelo

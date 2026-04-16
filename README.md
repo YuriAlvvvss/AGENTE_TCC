@@ -55,8 +55,9 @@ O script:
 - cria `.venv`;
 - instala dependencias do backend;
 - inicia backend e web em terminais separados;
-- abre o navegador em `http://localhost:8080`;
-- gera logs de inicializacao em `startup.log`.
+- usa as portas locais configuradas no `.env`, com padrão `18500` e `18080`;
+- abre o navegador automaticamente no frontend local;
+- gera logs de inicializacao na pasta `logs/`.
 
 ### Inicializacao automatica (recomendado - Linux)
 
@@ -69,7 +70,7 @@ O script Linux foi reforçado para um cenário mais robusto:
 - valida a estrutura do projeto antes de iniciar;
 - verifica Python 3.8+ e instala dependências de sistema quando necessário;
 - cria/usa `.venv` e reinstala pacotes com retry;
-- garante Ollama ativo e baixa o modelo configurado;
+- garante Ollama ativo sem baixar ou ativar modelos automaticamente;
 - valida backend e web por checagem real de resposta;
 - grava logs persistentes na pasta `logs/`.
 
@@ -93,10 +94,10 @@ python app.py
 
 ```bash
 cd web
-python -m http.server 8080
+python -m http.server 18080
 ```
 
-Abra `http://localhost:8080`.
+Abra `http://127.0.0.1:18080`.
 
 ### CLI (opcional)
 
@@ -121,6 +122,7 @@ Serviços padrão:
 - Ollama interno: acessível apenas dentro da stack por padrão
 
 Na primeira abertura, se ainda não houver modelo instalado, a própria interface web permite baixar modelos recomendados e acompanhar o progresso em tempo real.
+Nenhum modelo é baixado, ativado ou trocado automaticamente sem ação do usuário.
 
 Em servidor com placa NVIDIA, o Ollama interno já está preparado para usar GPU automaticamente. Para isso, deixe instalados o driver NVIDIA e o NVIDIA Container Toolkit no host. Se quiser limitar a uma GPU específica, ajuste `NVIDIA_VISIBLE_DEVICES` no `.env`.
 

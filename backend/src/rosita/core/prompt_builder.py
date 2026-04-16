@@ -1,11 +1,13 @@
 """Construção de prompt do sistema com template externo."""
 
 
-def construir_prompt_sistema(template: str, regimento: str) -> str:
-    """
-    Substitui placeholder no template de instruções.
+def construir_prompt_sistema(template: str, regimento: str, documentacao: str) -> str:
+    """Substitui placeholders do template por documentação oficial carregada na memória."""
+    prompt = template.replace("{REGIMENTO}", regimento)
+    prompt = prompt.replace("{DOCUMENTACAO}", documentacao)
 
-    Use ``{REGIMENTO}`` no arquivo de instruções para inserir o texto do regimento.
-    """
-    return template.replace("{REGIMENTO}", regimento)
+    if "{DOCUMENTACAO}" in template or documentacao in prompt:
+        return prompt
+
+    return f"{prompt}\n\nDOCUMENTAÇÃO OFICIAL EM MEMÓRIA:\n{documentacao}"
 

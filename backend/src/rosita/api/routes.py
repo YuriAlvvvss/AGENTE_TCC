@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any, Generator
 
 from flask import Blueprint, Response, jsonify, request
 
+from rosita.bootstrap import montar_contexto_agente
 from rosita.core.agent import RositaAgent
 from rosita.settings import Settings
 from rosita.utils.validators import validar_pergunta
@@ -14,6 +16,17 @@ from rosita.utils.validators import validar_pergunta
 
 def _sse_chunk_payload(payload: Any) -> str:
     return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+
+def _is_editable_data_file(filename: str) -> bool:
+    path = Path(filename)
+    return bool(filename) and path.name == filename and path.suffix.lower() in {".txt", ".md"}
+
+
+def _resolve_data_file(data_dir: Path, filename: str) -> Path:
+    if not _is_editable_data_file(filename):
+        raise ValueError("Arquivo inválido para edição.")
+    return data_dir / filename
 
 
 def create_api_blueprint(agent: RositaAgent, settings: Settings) -> Blueprint:
@@ -58,6 +71,8 @@ def create_api_blueprint(agent: RositaAgent, settings: Settings) -> Blueprint:
                 "baixando_modelo": agent.is_downloading,
                 "status_download": agent.download_status,
                 "progresso_download": agent.download_percent,
+                "documentos_contexto": agent.documentos_contexto,
+                "contexto_carregado": bool(agent.prompt_sistema.strip()),
             }
         )
 
@@ -120,6 +135,56 @@ def create_api_blueprint(agent: RositaAgent, settings: Settings) -> Blueprint:
             gerar_download(),
             mimetype="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+
+    @api_bp.route("/config/files", methods=["GET"])
+    def list_config_files() -> Any:
+        files = [
+            path.name
+            for path in sorted(settings.data_dir.iterdir())
+            if path.is_file() and _is_editable_data_file(path.name)
+        ]
+        return jsonify({"files": files})
+
+    @api_bp.route("/config/files/<path:filename>", methods=["GET"])
+    def get_config_file(filename: str) -> Any:
+        try:
+            path = _resolve_data_file(settings.data_dir, filename)
+        except ValueError as exc:
+            return jsonify({"erro": str(exc)}), 400
+
+        if not path.exists():
+            return jsonify({"erro": "Arquivo não encontrado."}), 404
+
+        return jsonify({"filename": path.name, "content": path.read_text(encoding="utf-8")})
+
+    @api_bp.route("/config/files/<path:filename>", methods=["PUT"])
+    def save_config_file(filename: str) -> Any:
+        try:
+            path = _resolve_data_file(settings.data_dir, filename)
+        except ValueError as exc:
+            return jsonify({"erro": str(exc)}), 400
+
+        dados = request.get_json(silent=True)
+        if dados is None or not isinstance(dados, dict):
+            return jsonify({"erro": "JSON inválido ou ausente."}), 400
+
+        content = dados.get("content")
+        if not isinstance(content, str):
+            return jsonify({"erro": "Campo 'content' é obrigatório."}), 400
+        if len(content) > 300000:
+            return jsonify({"erro": "Arquivo excede o limite permitido para edição."}), 400
+
+        path.write_text(content, encoding="utf-8")
+        prompt_sistema, documentos_carregados = montar_contexto_agente(settings)
+        agent.atualizar_contexto(prompt_sistema, documentos_carregados)
+
+        return jsonify(
+            {
+                "mensagem": "Arquivo salvo com sucesso.",
+                "filename": path.name,
+                "documentos_contexto": agent.documentos_contexto,
+            }
         )
 
     @api_bp.route("/limpar", methods=["POST"])

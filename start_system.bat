@@ -4,7 +4,7 @@ setlocal EnableExtensions EnableDelayedExpansion
 REM ==========================================================
 REM ROSITA - Startup automatico (Windows)
 REM 1) Detecta Python; tenta instalar via winget se ausente
-REM 2) Garante Ollama (instala opcional e inicia automatico)
+REM 2) Usa Ollama local ou servidor de IA externo configurado
 REM 3) Cria/usa .venv
 REM 4) Instala dependencias
 REM 5) Inicia backend e web em terminais separados
@@ -12,14 +12,35 @@ REM ==========================================================
 
 cd /d "%~dp0"
 set "ROOT_DIR=%cd%"
+set "LOG_DIR=%ROOT_DIR%\logs"
+if not exist "%LOG_DIR%" mkdir "%LOG_DIR%" >nul 2>&1
 set "VENV_PY=%ROOT_DIR%\.venv\Scripts\python.exe"
-set "START_LOG=%ROOT_DIR%\startup.log"
+set "START_LOG=%LOG_DIR%\startup.log"
 set "PY_CMD="
+set "BACKEND_PORT=18500"
+set "WEB_PORT=18080"
+set "OLLAMA_HOST=http://127.0.0.1:11434"
+set "OLLAMA_MODEL="
+set "NO_START=0"
+set "SKIP_BROWSER=0"
+set "SHOW_HELP=0"
+set "USE_LOCAL_OLLAMA=1"
+
+call :parse_args %*
+if "%SHOW_HELP%"=="1" (
+    call :show_help
+    goto :eof
+)
+call :load_env_file
+call :resolve_runtime_config
 
 call :log "============================================================"
 call :log "ROSITA startup iniciado."
 call :log "Raiz do projeto: %ROOT_DIR%"
 call :log "Log em arquivo: %START_LOG%"
+call :log "Backend local: %BACKEND_PORT%"
+call :log "Frontend local: %WEB_PORT%"
+call :log "Servidor de IA: %OLLAMA_HOST%"
 call :log "============================================================"
 
 call :log "PASSO 1/7 - Verificando Python no sistema..."
@@ -76,13 +97,38 @@ if not exist "web\index.html" (
 )
 call :log "PASSO 6/7 - OK."
 
+if "%NO_START%"=="1" (
+    echo.
+    echo ============================================
+    echo Validacao concluida com sucesso.
+    echo Backend local: %BACKEND_PORT%
+    echo Web local:     %WEB_PORT%
+    echo Servidor IA:   %OLLAMA_HOST%
+    echo Modelos:       selecao manual via interface
+    echo Log:           %START_LOG%
+    echo ============================================
+    call :log "Validacao concluida sem iniciar servicos (--no-start)."
+    goto :eof
+)
+
 call :log "PASSO 7/7 - Iniciando servicos (backend/web)..."
-start "ROSITA Backend" cmd /k "cd /d ""%ROOT_DIR%\backend"" && ""%VENV_PY%"" app.py"
+call :port_in_use %BACKEND_PORT%
+if not errorlevel 1 (
+    call :log_error "A porta do backend (%BACKEND_PORT%) ja esta em uso."
+    goto :fatal
+)
+call :port_in_use %WEB_PORT%
+if not errorlevel 1 (
+    call :log_error "A porta do frontend (%WEB_PORT%) ja esta em uso."
+    goto :fatal
+)
+
+start "ROSITA Backend" cmd /k "cd /d ""%ROOT_DIR%\backend"" && set PYTHONUNBUFFERED=1 && set ROSITA_API_HOST=127.0.0.1 && set ROSITA_API_PORT=%BACKEND_PORT% && set ROSITA_OLLAMA_HOST=%OLLAMA_HOST% && set ROSITA_OLLAMA_MODEL= && ""%VENV_PY%"" app.py"
 if errorlevel 1 (
     call :log_error "Nao foi possivel iniciar o backend."
     goto :fatal
 )
-start "ROSITA Web" cmd /k "cd /d ""%ROOT_DIR%\web"" && ""%VENV_PY%"" -m http.server 8080"
+start "ROSITA Web" cmd /k "cd /d ""%ROOT_DIR%\web"" && ""%VENV_PY%"" -m http.server %WEB_PORT%"
 if errorlevel 1 (
     call :log_error "Nao foi possivel iniciar o servidor web."
     goto :fatal
@@ -90,21 +136,68 @@ if errorlevel 1 (
 call :log "PASSO 7/7 - OK."
 
 timeout /t 2 >nul
-start "" "http://localhost:8080"
-call :log "Navegador aberto em http://localhost:8080."
+if not "%SKIP_BROWSER%"=="1" (
+    start "" "http://127.0.0.1:%WEB_PORT%"
+    call :log "Navegador aberto em http://127.0.0.1:%WEB_PORT%."
+) else (
+    call :log "Abertura automatica do navegador foi desativada."
+)
 
 echo.
 echo ============================================
 echo Sistema iniciado com sucesso.
-echo Backend: http://localhost:5000
-echo Web:     http://localhost:8080
-echo Ollama:  http://localhost:11434
+echo Backend: http://127.0.0.1:%BACKEND_PORT%
+echo Web:     http://127.0.0.1:%WEB_PORT%
+echo IA:      %OLLAMA_HOST%
+echo Modelos: selecao manual via interface
 echo Log:     %START_LOG%
 echo ============================================
 call :log "Inicializacao concluida com sucesso."
 goto :eof
 
+:parse_args
+if "%~1"=="" exit /b 0
+if /I "%~1"=="--no-start" set "NO_START=1"
+if /I "%~1"=="--skip-browser" set "SKIP_BROWSER=1"
+if /I "%~1"=="--help" set "SHOW_HELP=1"
+shift
+goto :parse_args
+
+:show_help
+echo Uso: start_system.bat [--no-start] [--skip-browser]
+exit /b 0
+
+:load_env_file
+if not exist "%ROOT_DIR%\.env" exit /b 0
+for /f "usebackq eol=# tokens=1* delims==" %%A in ("%ROOT_DIR%\.env") do (
+    if not "%%~A"=="" if not defined %%~A set "%%~A=%%~B"
+)
+exit /b 0
+
+:resolve_runtime_config
+if defined ROSITA_API_PORT set "BACKEND_PORT=%ROSITA_API_PORT%"
+if defined ROSITA_WEB_PORT set "WEB_PORT=%ROSITA_WEB_PORT%"
+if defined ROSITA_OLLAMA_MODEL set "OLLAMA_MODEL=%ROSITA_OLLAMA_MODEL%"
+if defined ROSITA_OLLAMA_HOST set "OLLAMA_HOST=%ROSITA_OLLAMA_HOST%"
+if /I "%OLLAMA_HOST%"=="http://ollama:11434" (
+    set "OLLAMA_HOST=http://127.0.0.1:11434"
+    set "USE_LOCAL_OLLAMA=1"
+) else if /I "%OLLAMA_HOST%"=="http://localhost:11434" (
+    set "USE_LOCAL_OLLAMA=1"
+) else if /I "%OLLAMA_HOST%"=="http://127.0.0.1:11434" (
+    set "USE_LOCAL_OLLAMA=1"
+) else (
+    set "USE_LOCAL_OLLAMA=0"
+)
+exit /b 0
+
 :ensure_ollama
+if "%USE_LOCAL_OLLAMA%"=="0" (
+    call :log "Servidor de IA externo configurado: %OLLAMA_HOST%"
+    call :log "Ollama local nao sera iniciado por este script."
+    exit /b 0
+)
+
 where ollama >nul 2>&1
 if errorlevel 1 (
     call :log "Ollama nao encontrado no PATH."
@@ -141,7 +234,7 @@ if errorlevel 1 (
     call :log_error "Ollama nao respondeu apos tentativas de inicializacao."
     exit /b 1
 )
-call :log "Ollama ativo e respondendo."
+call :log "Ollama ativo e respondendo. Nenhum modelo sera carregado automaticamente."
 exit /b 0
 
 :wait_ollama
@@ -214,7 +307,6 @@ if errorlevel 1 (
     exit /b 1
 )
 
-REM Recarrega shell PATH em nova deteccao
 set "PY_CMD="
 where python >nul 2>&1
 if not errorlevel 1 (
@@ -243,6 +335,10 @@ exit /b 1
 :run_python
 if "%PY_CMD%"=="" exit /b 1
 call %PY_CMD% %*
+exit /b %errorlevel%
+
+:port_in_use
+netstat -ano | findstr /R /C:":%~1 .*LISTENING" >nul
 exit /b %errorlevel%
 
 :log
