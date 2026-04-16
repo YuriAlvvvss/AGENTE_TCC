@@ -69,30 +69,76 @@ body {
   color: var(--color-text-muted);
 }
 
-.model-manager {
+.settings-card {
   margin-top: 14px;
-  padding: 12px 14px 14px;
+  padding: 14px;
   border: 1px solid var(--color-border);
-  border-radius: 14px;
+  border-radius: 16px;
   background: var(--color-surface-muted);
   box-shadow: var(--shadow-soft);
 }
 
-.model-manager-summary {
-  cursor: pointer;
-  font-weight: 600;
+.settings-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.settings-title {
+  margin: 0;
+  font-size: 18px;
   color: var(--color-primary-strong);
-  margin-bottom: 10px;
 }
 
-.model-manager-summary:focus-visible {
+.settings-subtitle {
+  margin: 4px 0 0;
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.settings-tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.settings-tab {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  border-radius: 999px;
+  padding: 8px 14px;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+  transition: all 0.15s ease;
+}
+
+.settings-tab:hover,
+.settings-tab:focus-visible {
   outline: none;
+  border-color: var(--color-primary);
   box-shadow: var(--shadow-focus);
-  border-radius: 8px;
 }
 
-.model-manager[open] .model-manager-summary {
-  margin-bottom: 14px;
+.settings-tab.is-active {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+}
+
+.settings-panel {
+  display: none;
+  margin-top: 14px;
+}
+
+.settings-panel.is-active {
+  display: block;
 }
 
 .model-row,
@@ -392,8 +438,18 @@ body {
     padding: 10px;
   }
 
+  .settings-header,
   .input-row {
     flex-direction: column;
+  }
+
+  .settings-tabs {
+    flex-direction: column;
+  }
+
+  .settings-tab {
+    width: 100%;
+    text-align: center;
   }
 
   .message-content {

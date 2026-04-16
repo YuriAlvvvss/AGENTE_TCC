@@ -24,37 +24,54 @@
       </div>
     </main>
 
-    <details class="model-manager">
-      <summary class="model-manager-summary">Configurações do modelo</summary>
-
-      <div class="model-row">
-        <label for="model-select">Modelo ativo:</label>
-        <select id="model-select" class="model-select"></select>
-        <button id="reload-models-btn" class="btn btn-secondary" type="button">Atualizar</button>
+    <section class="settings-card" aria-label="Configurações">
+      <div class="settings-header">
+        <div>
+          <h2 class="settings-title">Configurações</h2>
+          <p class="settings-subtitle">Gerencie o modelo e os downloads em um só lugar.</p>
+        </div>
+        <div id="token-stats" class="token-stats">Tokens: 0</div>
       </div>
 
-      <div class="download-row">
-        <input
-          type="text"
-          id="model-download-input"
-          class="model-input"
-          placeholder="Ex.: llama3.2:3b"
-          aria-label="Nome do modelo para baixar"
-        />
-        <button id="download-model-btn" class="btn btn-success" type="button">Baixar modelo</button>
+      <div class="settings-tabs" role="tablist" aria-label="Abas de configuração">
+        <button id="tab-model" class="settings-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="panel-model" data-tab="model">
+          Modelo ativo
+        </button>
+        <button id="tab-download" class="settings-tab" type="button" role="tab" aria-selected="false" aria-controls="panel-download" data-tab="download">
+          Download de modelos
+        </button>
       </div>
 
-      <div id="suggested-models" class="suggested-models"></div>
-
-      <div id="download-progress-wrap" class="download-progress hidden">
-        <div id="download-status" class="download-status">Preparando download...</div>
-        <div class="progress-bar">
-          <div id="download-progress-bar" class="progress-bar-fill"></div>
+      <div id="panel-model" class="settings-panel is-active" role="tabpanel" aria-labelledby="tab-model">
+        <div class="model-row">
+          <label for="model-select">Modelo ativo:</label>
+          <select id="model-select" class="model-select"></select>
+          <button id="reload-models-btn" class="btn btn-secondary" type="button">Atualizar</button>
         </div>
       </div>
-    </details>
 
-    <div id="token-stats" class="token-stats">Tokens: 0</div>
+      <div id="panel-download" class="settings-panel" role="tabpanel" aria-labelledby="tab-download">
+        <div class="download-row">
+          <input
+            type="text"
+            id="model-download-input"
+            class="model-input"
+            placeholder="Ex.: llama3.2:3b"
+            aria-label="Nome do modelo para baixar"
+          />
+          <button id="download-model-btn" class="btn btn-success" type="button">Baixar modelo</button>
+        </div>
+
+        <div id="suggested-models" class="suggested-models"></div>
+
+        <div id="download-progress-wrap" class="download-progress hidden">
+          <div id="download-status" class="download-status">Preparando download...</div>
+          <div class="progress-bar">
+            <div id="download-progress-bar" class="progress-bar-fill"></div>
+          </div>
+        </div>
+      </div>
+    </section>
   </div>
 
   <div id="loading-overlay" class="loading-overlay hidden" aria-live="polite">

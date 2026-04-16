@@ -17,6 +17,8 @@ class RositaApp {
     this.loadingOverlay = document.getElementById("loading-overlay");
     this.loadingText = document.getElementById("loading-text");
     this.tokenStatsEl = document.getElementById("token-stats");
+    this.settingsTabs = Array.from(document.querySelectorAll(".settings-tab"));
+    this.settingsPanels = Array.from(document.querySelectorAll(".settings-panel"));
 
     this.isAwaitingResponse = false;
     this.isDownloadingModel = false;
@@ -39,6 +41,9 @@ class RositaApp {
     this.reloadModelsBtn.addEventListener("click", () => this.carregarModelos());
     this.downloadBtn.addEventListener("click", () => this.baixarModelo());
     this.modelSelect.addEventListener("change", () => this.selecionarModelo());
+    this.settingsTabs.forEach((tab) => {
+      tab.addEventListener("click", () => this.switchSettingsTab(tab.dataset.tab));
+    });
 
     this.userInput.addEventListener("keypress", (e) => {
       if (e.key === "Enter" && !this.isAwaitingResponse && this.hasActiveModel) {
@@ -62,6 +67,18 @@ class RositaApp {
     this.clearBtn.disabled = this.isAwaitingResponse;
     this.downloadInput.disabled = this.isAwaitingResponse || this.isDownloadingModel;
     this.downloadBtn.disabled = this.isAwaitingResponse || this.isDownloadingModel;
+  }
+
+  switchSettingsTab(tabName) {
+    this.settingsTabs.forEach((tab) => {
+      const active = tab.dataset.tab === tabName;
+      tab.classList.toggle("is-active", active);
+      tab.setAttribute("aria-selected", active ? "true" : "false");
+    });
+
+    this.settingsPanels.forEach((panel) => {
+      panel.classList.toggle("is-active", panel.id === `panel-${tabName}`);
+    });
   }
 
   async verificarStatus() {
