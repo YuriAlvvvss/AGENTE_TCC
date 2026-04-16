@@ -21,6 +21,14 @@ services:
       - ./backend/data:/app/backend/data
     ports:
       - "${ROSITA_API_PORT:-18500}:5000"
+    gpus: all
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     depends_on:
       ollama:
         condition: service_healthy

@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
+import time
 from typing import Any, Dict, Generator, List
 
 import ollama
@@ -69,6 +71,76 @@ class RositaAgent:
         """Inicia sem modelo ativo para manter o controle totalmente manual pelo usuário."""
         return ""
 
+    def _formatar_erro_ollama(self, exc: Exception) -> str:
+        """Converte erros de conexão do Ollama em mensagens mais claras para a UI."""
+        detalhe = str(exc).strip()
+        if self._usa_cli_local():
+            base = (
+                f"O Ollama local não está respondendo em {self.settings.ollama_host}. "
+                "Abra o aplicativo Ollama ou execute 'ollama serve'."
+            )
+            return f"{base} Detalhes: {detalhe}" if detalhe else base
+        return detalhe or f"Não foi possível conectar ao Ollama em {self.settings.ollama_host}."
+
+    def _is_connection_error(self, exc: Exception) -> bool:
+        """Identifica falhas transitórias de conexão com o servidor Ollama."""
+        if isinstance(exc, (ConnectionError, OSError, TimeoutError)):
+            return True
+
+        mensagem = str(exc).lower()
+        sinais = (
+            "connection refused",
+            "actively refused",
+            "failed to connect",
+            "max retries exceeded",
+            "timed out",
+            "timeout",
+            "connection error",
+            "connection aborted",
+            "offline",
+            "refused",
+        )
+        return any(sinal in mensagem for sinal in sinais)
+
+    def _start_local_ollama(self) -> None:
+        """Tenta iniciar o Ollama local em background quando o binário está disponível."""
+        kwargs: dict[str, Any] = {
+            "stdout": subprocess.DEVNULL,
+            "stderr": subprocess.DEVNULL,
+        }
+
+        if os.name == "nt":
+            creationflags = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
+            if creationflags:
+                kwargs["creationflags"] = creationflags
+        else:
+            kwargs["start_new_session"] = True
+
+        subprocess.Popen(["ollama", "serve"], **kwargs)
+
+    def _ensure_ollama_running(self) -> Any:
+        """Garante que o servidor Ollama esteja acessível antes das operações do agente."""
+        try:
+            return self.client.list()
+        except Exception as exc:
+            if not self._usa_cli_local() or not self._is_connection_error(exc):
+                raise RuntimeError(self._formatar_erro_ollama(exc)) from exc
+
+        try:
+            self._start_local_ollama()
+        except Exception as exc:
+            raise RuntimeError(self._formatar_erro_ollama(exc)) from exc
+
+        ultimo_erro: Exception | None = None
+        for _ in range(10):
+            try:
+                return self.client.list()
+            except Exception as exc:
+                ultimo_erro = exc
+                time.sleep(1)
+
+        raise RuntimeError(self._formatar_erro_ollama(ultimo_erro or RuntimeError("Ollama indisponível.")))
+
     def processar_pergunta(self, pergunta: str) -> Generator[str, None, None]:
         """Valida a pergunta, faz streaming da resposta e persiste histórico."""
         if self.is_busy:
@@ -90,6 +162,7 @@ class RositaAgent:
         resposta_completa = ""
         self.is_busy = True
         try:
+            self._ensure_ollama_running()
             stream = self.client.chat(
                 model=self.current_model,
                 messages=mensagens,
@@ -132,7 +205,7 @@ class RositaAgent:
 
     def listar_modelos_instalados(self) -> List[str]:
         """Lista modelos disponíveis localmente no Ollama."""
-        data = self.client.list()
+        data = self._ensure_ollama_running()
         if isinstance(data, dict):
             entries = data.get("models", [])
         else:
@@ -187,6 +260,8 @@ class RositaAgent:
         if not modelo:
             raise ValueError("Modelo inválido.")
 
+        self._ensure_ollama_running()
+
         self.is_downloading = True
         self.download_model = modelo
         self.download_status = "Preparando download"
@@ -231,9 +306,9 @@ class RositaAgent:
                 "modelo": modelo,
                 "finalizado": True,
             }
-        except Exception:
+        except Exception as exc:
             self.download_status = "Falha no download"
-            raise
+            raise RuntimeError(self._formatar_erro_ollama(exc)) from exc
         finally:
             self.is_downloading = False
             self.download_model = ""

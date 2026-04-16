@@ -11,6 +11,7 @@ from flask import Blueprint, Response, jsonify, request
 from rosita.bootstrap import montar_contexto_agente
 from rosita.core.agent import RositaAgent
 from rosita.settings import Settings
+from rosita.utils.system_monitor import get_system_snapshot
 from rosita.utils.validators import validar_pergunta
 
 
@@ -73,6 +74,7 @@ def create_api_blueprint(agent: RositaAgent, settings: Settings) -> Blueprint:
                 "progresso_download": agent.download_percent,
                 "documentos_contexto": agent.documentos_contexto,
                 "contexto_carregado": bool(agent.prompt_sistema.strip()),
+                "sistema": get_system_snapshot(),
             }
         )
 

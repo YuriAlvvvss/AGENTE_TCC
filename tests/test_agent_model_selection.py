@@ -155,6 +155,26 @@ class AgentModelSelectionTests(unittest.TestCase):
         self.assertEqual(agent.obter_modelo_atual(), "")
         self.assertTrue(any(evento["percentual"] == 25 for evento in eventos))
 
+    @patch("rosita.core.agent.subprocess.Popen")
+    @patch("rosita.core.agent.shutil.which", return_value="C:/Users/test/AppData/Local/Programs/Ollama/ollama.exe")
+    @patch("rosita.core.agent.ollama.Client")
+    def test_download_model_starts_local_ollama_when_service_is_not_running(
+        self,
+        mock_client,
+        _mock_which,
+        mock_popen,
+    ):
+        client = mock_client.return_value
+        client.list.side_effect = [ConnectionError("offline"), {"models": []}]
+        client.pull.return_value = iter([{"status": "success"}])
+
+        agent = RositaAgent(self.make_settings("", host="http://127.0.0.1:11434"), "prompt")
+        eventos = list(agent.baixar_modelo("llama3.2:3b"))
+
+        mock_popen.assert_called_once()
+        client.pull.assert_called_once_with(model="llama3.2:3b", stream=True)
+        self.assertTrue(any(evento["percentual"] == 100 for evento in eventos))
+
     @patch("rosita.core.agent.ollama.Client")
     def test_switching_model_unloads_current_before_loading_next(self, mock_client):
         client = mock_client.return_value
@@ -274,6 +294,28 @@ class AgentModelSelectionTests(unittest.TestCase):
         self.assertEqual(res.status_code, 200)
         self.assertEqual(updated_text, "Conteúdo novo e oficial")
         self.assertIn("Conteúdo novo e oficial", prompt)
+
+    @patch("rosita.core.agent.ollama.Client")
+    def test_status_api_returns_system_and_gpu_summary(self, mock_client):
+        mock_client.return_value.list.return_value = {"models": []}
+
+        settings = self.make_settings("")
+        agent = RositaAgent(settings, "prompt")
+
+        app = Flask(__name__)
+        app.register_blueprint(create_api_blueprint(agent, settings))
+        client = app.test_client()
+        res = client.get("/api/status")
+
+        self.assertEqual(res.status_code, 200)
+        payload = res.get_json()
+        self.assertIn("sistema", payload)
+        self.assertIsInstance(payload["sistema"]["cpu"], dict)
+        self.assertIsInstance(payload["sistema"]["memoria"], dict)
+        self.assertIsInstance(payload["sistema"]["gpu"], dict)
+        self.assertIn("uso_percentual", payload["sistema"]["cpu"])
+        self.assertIn("percentual", payload["sistema"]["memoria"])
+        self.assertIn("disponivel", payload["sistema"]["gpu"])
 
 
 if __name__ == "__main__":

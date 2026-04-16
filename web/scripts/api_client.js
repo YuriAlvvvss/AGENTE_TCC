@@ -1,11 +1,65 @@
 class RositaApiClient {
   constructor(baseUrl = window.ROSITA_API_BASE_URL || "") {
-    this.baseUrl = (baseUrl || "").replace(/\/$/, "");
+    this.baseUrlCandidates = this.buildBaseUrlCandidates(baseUrl);
+    this.baseUrl = this.baseUrlCandidates[0] || "";
     this.isConnected = false;
   }
 
+  buildBaseUrlCandidates(explicitBaseUrl = "") {
+    const candidates = [];
+    const pushCandidate = (value) => {
+      const normalized = (value || "").replace(/\/$/, "");
+      if (!candidates.includes(normalized)) {
+        candidates.push(normalized);
+      }
+    };
+
+    pushCandidate(explicitBaseUrl);
+    pushCandidate("");
+
+    if (typeof window !== "undefined" && window.location) {
+      const { protocol, hostname } = window.location;
+      if (hostname && (protocol === "http:" || protocol === "https:")) {
+        pushCandidate(`${protocol}//${hostname}:18500`);
+      }
+    }
+
+    return candidates.length ? candidates : [""];
+  }
+
+  shouldRetryWithNextBase(response) {
+    return [404, 502, 503, 504].includes(response?.status || 0);
+  }
+
+  async request(path, options = {}) {
+    let lastError = null;
+    const lastCandidate = this.baseUrlCandidates[this.baseUrlCandidates.length - 1];
+
+    for (const candidate of this.baseUrlCandidates) {
+      const url = `${candidate}${path}`;
+      try {
+        const response = await fetch(url, options);
+        if (!response.ok && this.shouldRetryWithNextBase(response) && candidate !== lastCandidate) {
+          lastError = new Error(`Erro HTTP ${response.status}`);
+          continue;
+        }
+
+        this.baseUrlCandidates = [candidate, ...this.baseUrlCandidates.filter((item) => item !== candidate)];
+        this.baseUrl = candidate;
+        return response;
+      } catch (error) {
+        lastError = error;
+        if (candidate === lastCandidate) {
+          break;
+        }
+      }
+    }
+
+    throw lastError || new Error("Não foi possível conectar ao backend ROSITA.");
+  }
+
   async obterStatus() {
-    const res = await fetch(`${this.baseUrl}/api/status`);
+    const res = await this.request("/api/status");
     if (!res.ok) {
       const text = await res.text();
       throw new Error(text || `Erro HTTP ${res.status}`);
@@ -25,11 +79,16 @@ class RositaApiClient {
   }
 
   async streamSse(path, options = {}, onEvent = null) {
-    const response = await fetch(`${this.baseUrl}${path}`, options);
+    const response = await this.request(path, options);
 
     if (!response.ok) {
       const text = await response.text();
       throw new Error(text || `Erro HTTP ${response.status}`);
+    }
+
+    if (!response.body) {
+      const fallbackText = await response.text();
+      return { text: fallbackText, events: [] };
     }
 
     const reader = response.body.getReader();
@@ -91,7 +150,7 @@ class RositaApiClient {
   }
 
   async listarModelos() {
-    const res = await fetch(`${this.baseUrl}/api/models`);
+    const res = await this.request("/api/models");
     if (!res.ok) {
       const text = await res.text();
       throw new Error(text || `Erro HTTP ${res.status}`);
@@ -114,7 +173,7 @@ class RositaApiClient {
   }
 
   async selecionarModelo(model) {
-    const res = await fetch(`${this.baseUrl}/api/models/select`, {
+    const res = await this.request("/api/models/select", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ model }),
@@ -134,7 +193,7 @@ class RositaApiClient {
   }
 
   async listarArquivosConfiguracao() {
-    const res = await fetch(`${this.baseUrl}/api/config/files`);
+    const res = await this.request("/api/config/files");
     if (!res.ok) {
       const text = await res.text();
       throw new Error(text || `Erro HTTP ${res.status}`);
@@ -143,7 +202,7 @@ class RositaApiClient {
   }
 
   async lerArquivoConfiguracao(filename) {
-    const res = await fetch(`${this.baseUrl}/api/config/files/${encodeURIComponent(filename)}`);
+    const res = await this.request(`/api/config/files/${encodeURIComponent(filename)}`);
     if (!res.ok) {
       const text = await res.text();
       throw new Error(text || `Erro HTTP ${res.status}`);
@@ -152,7 +211,7 @@ class RositaApiClient {
   }
 
   async salvarArquivoConfiguracao(filename, content) {
-    const res = await fetch(`${this.baseUrl}/api/config/files/${encodeURIComponent(filename)}`, {
+    const res = await this.request(`/api/config/files/${encodeURIComponent(filename)}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ content }),
@@ -172,7 +231,7 @@ class RositaApiClient {
   }
 
   async limparHistorico() {
-    const res = await fetch(`${this.baseUrl}/api/limpar`, { method: "POST" });
+    const res = await this.request("/api/limpar", { method: "POST" });
     if (!res.ok) throw new Error(`Erro HTTP ${res.status}`);
     return res.json();
   }

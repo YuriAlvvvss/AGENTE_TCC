@@ -6,6 +6,11 @@ class RositaApp {
     this.clearBtn = document.getElementById("clear-btn");
     this.statusEl = document.getElementById("status");
     this.serverInfoEl = document.getElementById("server-info");
+    this.systemHostEl = document.getElementById("system-host");
+    this.systemCpuEl = document.getElementById("system-cpu");
+    this.systemMemoryEl = document.getElementById("system-memory");
+    this.systemDiskEl = document.getElementById("system-disk");
+    this.systemGpuEl = document.getElementById("system-gpu");
     this.modelSelect = document.getElementById("model-select");
     this.reloadModelsBtn = document.getElementById("reload-models-btn");
     this.downloadInput = document.getElementById("model-download-input");
@@ -34,10 +39,12 @@ class RositaApp {
     this.modelRefreshTimer = null;
     this.selectedConfigFile = "";
     this.configFilesLoaded = false;
+    this.statusTimer = null;
 
     this.bindEvents();
     this.updateControls();
     this.verificarStatus();
+    this.startStatusPolling();
     this.carregarModelos();
     this.carregarArquivosConfiguracao(true);
     this.adicionarMensagem("Olá! Sou a ROSITA. Como posso ajudar?", "assistant");
@@ -110,6 +117,46 @@ class RositaApp {
     }
   }
 
+  startStatusPolling() {
+    if (this.statusTimer) return;
+    this.statusTimer = window.setInterval(() => this.verificarStatus(), 5000);
+  }
+
+  formatPercent(value) {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? `${numeric.toFixed(1)}%` : "--";
+  }
+
+  atualizarSistema(system = {}) {
+    const cpu = system.cpu || {};
+    const memory = system.memoria || {};
+    const disk = system.disco || {};
+    const gpu = system.gpu || {};
+
+    if (this.systemHostEl) {
+      this.systemHostEl.textContent = `${system.hostname || "Host"} • ${system.plataforma || "Sistema"}`;
+    }
+
+    if (this.systemCpuEl) {
+      this.systemCpuEl.textContent = `${this.formatPercent(cpu.uso_percentual)} • ${cpu.nucleos_logicos || 0} núcleos lógicos`;
+    }
+
+    if (this.systemMemoryEl) {
+      this.systemMemoryEl.textContent = `${memory.usada || "--"} / ${memory.total || "--"} • ${this.formatPercent(memory.percentual)}`;
+    }
+
+    if (this.systemDiskEl) {
+      this.systemDiskEl.textContent = `${disk.usado || "--"} / ${disk.total || "--"} • ${this.formatPercent(disk.percentual)}`;
+    }
+
+    if (this.systemGpuEl) {
+      const gpuUsage = gpu.uso_percentual == null ? "sem telemetria" : this.formatPercent(gpu.uso_percentual);
+      this.systemGpuEl.textContent = gpu.disponivel
+        ? `${gpu.nome || "GPU"} • ${gpuUsage}`
+        : (gpu.mensagem || "GPU não detectada");
+    }
+  }
+
   async verificarStatus() {
     try {
       const payload = await window.rositaApi.obterStatus();
@@ -117,16 +164,22 @@ class RositaApp {
       const contexto = docs.length
         ? `Contexto carregado: ${docs.length} documento(s)`
         : "Contexto documental não encontrado";
+      const gpu = payload.sistema?.gpu || {};
+      const gpuResumo = gpu.disponivel
+        ? `${gpu.nome || "GPU"}${gpu.uso_percentual == null ? "" : ` • ${this.formatPercent(gpu.uso_percentual)}`}`
+        : (gpu.nome || "CPU");
 
       this.statusEl.textContent = payload.modelo_atual ? "Online" : "Online • sem modelo ativo";
       this.statusEl.className = "status status--online";
       this.serverInfoEl.textContent = payload.modelo_atual
-        ? `Servidor de IA: ${payload.servidor_ia} • Modelo ativo: ${payload.modelo_atual} • ${contexto}`
-        : `Servidor de IA: ${payload.servidor_ia} • Selecione um modelo para começar • ${contexto}`;
+        ? `Servidor de IA: ${payload.servidor_ia} • Modelo ativo: ${payload.modelo_atual} • GPU: ${gpuResumo} • ${contexto}`
+        : `Servidor de IA: ${payload.servidor_ia} • Selecione um modelo para começar • GPU: ${gpuResumo} • ${contexto}`;
+      this.atualizarSistema(payload.sistema || {});
     } catch {
       this.statusEl.textContent = "Offline";
       this.statusEl.className = "status status--offline";
       this.serverInfoEl.textContent = "Não foi possível conectar ao backend.";
+      this.atualizarSistema({});
     }
   }
 
@@ -418,8 +471,9 @@ class RositaApp {
       );
       await this.carregarModelos();
     } catch (err) {
-      this.adicionarMensagem(`Erro ao baixar modelo: ${err.message || String(err)}`, "assistant");
-      this.setDownloadProgress(0, `Falha ao baixar ${model}`);
+      const errorMessage = err.message || String(err);
+      this.adicionarMensagem(`Erro ao baixar modelo: ${errorMessage}`, "assistant");
+      this.setDownloadProgress(0, `Falha ao baixar ${model}: ${errorMessage}`);
     } finally {
       this.isDownloadingModel = false;
       this.stopModelPolling();
