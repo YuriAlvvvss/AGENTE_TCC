@@ -90,6 +90,30 @@ pkill -f "http.server 8080"
 pkill -f "ollama serve"
 ```
 
+## Deploy com Docker Compose / Coolify
+
+Para publicar no servidor com containers:
+
+```bash
+cp .env.example .env
+```
+
+O padrão já usa o Ollama interno do `docker-compose`. Se preferir apontar para um servidor de IA externo, altere no arquivo `.env`:
+
+```bash
+ROSITA_OLLAMA_HOST=https://seu-servidor-ia.exemplo.com
+```
+
+Suba a stack:
+
+```bash
+docker compose up --build -d
+```
+
+No Coolify, importe o projeto e selecione o `docker-compose.yml` da raiz do repositório.
+
+Após a primeira subida, use o frontend para baixar um modelo recomendado e ativá-lo sem precisar entrar no container manualmente.
+
 ## Ajuste de portas
 
 Você pode alterar as portas sem editar o código:

@@ -21,5 +21,5 @@ settings = load_settings()
 
 
 if __name__ == "__main__":
-    print(f"Servidor iniciando em http://localhost:{settings.api_port}")
+    print(f"Servidor iniciando em {settings.api_host}:{settings.api_port}")
     app.run(host=settings.api_host, port=settings.api_port, debug=settings.debug)

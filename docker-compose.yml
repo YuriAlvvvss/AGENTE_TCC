@@ -1,0 +1,52 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    environment:
+      PYTHONUNBUFFERED: "1"
+      ROSITA_API_HOST: "0.0.0.0"
+      ROSITA_API_PORT: "5000"
+      ROSITA_DEBUG: "false"
+      ROSITA_OLLAMA_HOST: ${ROSITA_OLLAMA_HOST:-http://ollama:11434}
+      ROSITA_OLLAMA_MODEL: ${ROSITA_OLLAMA_MODEL:-llama3.2:3b}
+      ROSITA_MAX_HISTORY: ${ROSITA_MAX_HISTORY:-5}
+      ROSITA_MAX_INPUT_CHARS: ${ROSITA_MAX_INPUT_CHARS:-1000}
+      ROSITA_NUM_PREDICT: ${ROSITA_NUM_PREDICT:-128}
+      ROSITA_TEMPERATURE: ${ROSITA_TEMPERATURE:-0.7}
+      ROSITA_TOP_P: ${ROSITA_TOP_P:-0.9}
+      ROSITA_REPEAT_PENALTY: ${ROSITA_REPEAT_PENALTY:-1.1}
+    volumes:
+      - ./backend/data:/app/backend/data:ro
+    ports:
+      - "${ROSITA_API_PORT:-5000}:5000"
+    depends_on:
+      ollama:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${ROSITA_WEB_PORT:-8080}:80"
+
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    expose:
+      - "11434"
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    volumes:
+      - ollama_data:/root/.ollama
+
+volumes:
+  ollama_data:

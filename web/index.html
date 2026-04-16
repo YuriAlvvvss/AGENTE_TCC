@@ -12,13 +12,39 @@
       <h1>ROSITA</h1>
       <p class="subtitle">Assistente Escolar - PEI Rosa Bonfiglioli</p>
       <div id="status" class="status status--offline">Verificando...</div>
-      <div class="model-row">
-        <label for="model-select">Modelo Ollama:</label>
-        <select id="model-select" class="model-select"></select>
-        <button id="reload-models-btn" class="btn btn-secondary" type="button">Atualizar modelos</button>
-      </div>
+      <div id="server-info" class="server-info">Conectando ao servidor de IA...</div>
+
+      <section class="model-manager">
+        <div class="model-row">
+          <label for="model-select">Modelo ativo:</label>
+          <select id="model-select" class="model-select"></select>
+          <button id="reload-models-btn" class="btn btn-secondary" type="button">Atualizar</button>
+        </div>
+
+        <div class="download-row">
+          <input
+            type="text"
+            id="model-download-input"
+            class="model-input"
+            placeholder="Ex.: llama3.2:3b"
+            aria-label="Nome do modelo para baixar"
+          />
+          <button id="download-model-btn" class="btn btn-success" type="button">Baixar modelo</button>
+        </div>
+
+        <div id="suggested-models" class="suggested-models"></div>
+
+        <div id="download-progress-wrap" class="download-progress hidden">
+          <div id="download-status" class="download-status">Preparando download...</div>
+          <div class="progress-bar">
+            <div id="download-progress-bar" class="progress-bar-fill"></div>
+          </div>
+        </div>
+      </section>
+
       <div id="token-stats" class="token-stats">Tokens: 0</div>
     </header>
+
     <main class="main">
       <div id="chat-container" class="chat-container"></div>
       <div class="input-row">

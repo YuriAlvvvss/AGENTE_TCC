@@ -2,10 +2,11 @@ body {
   margin: 0;
   font-family: Arial, sans-serif;
   background: #eef3f8;
+  color: #1f2937;
 }
 
 .app {
-  max-width: 900px;
+  max-width: 980px;
   margin: 0 auto;
   padding: 16px;
 }
@@ -14,8 +15,27 @@ body {
   text-align: center;
 }
 
-.model-row {
-  margin-top: 12px;
+.status {
+  font-weight: 700;
+  margin-top: 8px;
+}
+
+.server-info {
+  margin-top: 6px;
+  font-size: 13px;
+  color: #546e7a;
+}
+
+.model-manager {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid #d9e2ec;
+  border-radius: 10px;
+  background: #f8fbff;
+}
+
+.model-row,
+.download-row {
   display: flex;
   justify-content: center;
   align-items: center;
@@ -23,15 +43,69 @@ body {
   flex-wrap: wrap;
 }
 
-.model-select {
-  padding: 8px;
+.download-row {
+  margin-top: 10px;
+}
+
+.model-select,
+.model-input {
+  padding: 10px;
   border: 1px solid #b0bec5;
   border-radius: 6px;
   min-width: 220px;
+  background: #fff;
+}
+
+.model-input {
+  min-width: 260px;
+}
+
+.suggested-models {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.suggested-chip {
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+  padding: 8px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.download-progress {
+  margin-top: 12px;
+  text-align: left;
+}
+
+.download-status {
+  font-size: 13px;
+  margin-bottom: 6px;
+  color: #374151;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 10px;
+  background: #dbe7f3;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  width: 0%;
+  height: 100%;
+  background: linear-gradient(90deg, #2563eb, #22c55e);
+  transition: width 0.2s ease;
 }
 
 .token-stats {
-  margin-top: 8px;
+  margin-top: 10px;
   font-size: 12px;
   color: #455a64;
   white-space: nowrap;
@@ -40,6 +114,7 @@ body {
 }
 
 .main {
+  margin-top: 14px;
   background: #fff;
   border: 1px solid #d9e2ec;
   border-radius: 10px;
@@ -107,6 +182,10 @@ body {
   background: #607d8b;
 }
 
+.btn-success {
+  background: #2e7d32;
+}
+
 .btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
@@ -118,6 +197,10 @@ body {
 
 .status--offline {
   color: #c62828;
+}
+
+.hidden {
+  display: none;
 }
 
 .loading-overlay {
@@ -151,6 +234,22 @@ body {
   border-top-color: #1565c0;
   border-radius: 50%;
   animation: spin 0.9s linear infinite;
+}
+
+@media (max-width: 720px) {
+  .input-row {
+    flex-direction: column;
+  }
+
+  .message-content {
+    max-width: 100%;
+  }
+
+  .model-select,
+  .model-input {
+    width: 100%;
+    min-width: 0;
+  }
 }
 
 @keyframes spin {

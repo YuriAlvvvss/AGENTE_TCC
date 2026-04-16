@@ -12,8 +12,8 @@ from rosita.settings import Settings
 from rosita.utils.validators import validar_pergunta
 
 
-def _sse_chunk_payload(texto: str) -> str:
-    return f"data: {json.dumps(texto)}\n\n"
+def _sse_chunk_payload(payload: Any) -> str:
+    return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
 def create_api_blueprint(agent: RositaAgent, settings: Settings) -> Blueprint:
@@ -54,6 +54,10 @@ def create_api_blueprint(agent: RositaAgent, settings: Settings) -> Blueprint:
                 "agente": "ROSITA",
                 "modelo_atual": agent.obter_modelo_atual(),
                 "ocupado": agent.is_busy,
+                "servidor_ia": settings.ollama_host,
+                "baixando_modelo": agent.is_downloading,
+                "status_download": agent.download_status,
+                "progresso_download": agent.download_percent,
             }
         )
 
@@ -64,6 +68,11 @@ def create_api_blueprint(agent: RositaAgent, settings: Settings) -> Blueprint:
                 {
                     "models": agent.listar_modelos_instalados(),
                     "current_model": agent.obter_modelo_atual(),
+                    "recommended_models": agent.obter_modelos_recomendados(),
+                    "downloading": agent.is_downloading,
+                    "download_model": agent.download_model,
+                    "download_status": agent.download_status,
+                    "download_percent": agent.download_percent,
                 }
             )
         except Exception as exc:
@@ -88,6 +97,30 @@ def create_api_blueprint(agent: RositaAgent, settings: Settings) -> Blueprint:
             return jsonify({"erro": str(exc)}), 409
         except Exception as exc:
             return jsonify({"erro": str(exc)}), 500
+
+    @api_bp.route("/models/download", methods=["POST"])
+    def download_model() -> Any:
+        dados = request.get_json(silent=True)
+        if dados is None or not isinstance(dados, dict):
+            return jsonify({"erro": "JSON inválido ou ausente."}), 400
+
+        model = dados.get("model")
+        if not isinstance(model, str) or not model.strip():
+            return jsonify({"erro": "Campo 'model' é obrigatório."}), 400
+
+        def gerar_download() -> Generator[str, None, None]:
+            try:
+                for evento in agent.baixar_modelo(model):
+                    yield _sse_chunk_payload(evento)
+                yield "data: [FIM]\n\n"
+            except Exception as exc:
+                yield f"data: [ERRO] {exc}\n\n"
+
+        return Response(
+            gerar_download(),
+            mimetype="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
 
     @api_bp.route("/limpar", methods=["POST"])
     def limpar() -> Any:

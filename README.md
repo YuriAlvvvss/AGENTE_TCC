@@ -1,6 +1,6 @@
 # ROSITA - Assistente Escolar
 
-Projeto Python com backend Flask + Ollama e frontend web.
+Projeto Python com backend Flask + Ollama local ou externo e frontend web.
 
 ## Estrutura padronizada
 
@@ -103,6 +103,26 @@ Abra `http://localhost:8080`.
 ```bash
 python agent_cli.py
 ```
+
+## Deploy com Docker / Coolify
+
+1. copie o arquivo `.env.example` para `.env`;
+2. por padrão, o projeto já sobe com um Ollama interno no próprio `docker-compose`;
+3. se quiser usar um servidor de IA externo, ajuste `ROSITA_OLLAMA_HOST` no `.env`;
+4. suba a stack:
+
+```bash
+docker compose up --build -d
+```
+
+Serviços padrão:
+- Web: `http://SEU_SERVIDOR:8080`
+- API: `http://SEU_SERVIDOR:5000`
+- Ollama interno: acessível apenas dentro da stack por padrão
+
+Na primeira abertura, se ainda não houver modelo instalado, a própria interface web permite baixar modelos recomendados e acompanhar o progresso em tempo real.
+
+No Coolify, basta importar o repositório e usar o arquivo `docker-compose.yml` da raiz.
 
 ## API
 

@@ -14,6 +14,7 @@ class Settings:
     base_dir: Path
     data_dir: Path
     ollama_model: str
+    ollama_host: str
     max_history: int
     max_input_chars: int
     api_host: str
@@ -35,15 +36,22 @@ def load_settings() -> Settings:
     default_data_dir = backend_dir / "data"
     data_dir = Path(os.getenv("ROSITA_DATA_DIR", str(default_data_dir)))
 
+    ollama_host = (
+        os.getenv("ROSITA_OLLAMA_HOST")
+        or os.getenv("ROSITA_AI_SERVER_URL")
+        or "http://127.0.0.1:11434"
+    ).strip().rstrip("/")
+
     return Settings(
         base_dir=backend_dir,
         data_dir=data_dir,
         ollama_model=(os.getenv("ROSITA_OLLAMA_MODEL") or "").strip(),
+        ollama_host=ollama_host,
         max_history=int(os.getenv("ROSITA_MAX_HISTORY", "5")),
         max_input_chars=int(os.getenv("ROSITA_MAX_INPUT_CHARS", "1000")),
         api_host=os.getenv("ROSITA_API_HOST", "0.0.0.0"),
         api_port=int(os.getenv("ROSITA_API_PORT", "5000")),
-        debug=_env_bool("ROSITA_DEBUG", True),
+        debug=_env_bool("ROSITA_DEBUG", False),
         chat_options={
             "num_predict": int(os.getenv("ROSITA_NUM_PREDICT", "128")),
             "temperature": float(os.getenv("ROSITA_TEMPERATURE", "0.7")),

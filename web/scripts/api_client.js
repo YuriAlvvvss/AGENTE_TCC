@@ -1,26 +1,31 @@
 class RositaApiClient {
-  constructor(baseUrl = "http://localhost:5000") {
-    this.baseUrl = baseUrl.replace(/\/$/, "");
+  constructor(baseUrl = window.ROSITA_API_BASE_URL || "") {
+    this.baseUrl = (baseUrl || "").replace(/\/$/, "");
     this.isConnected = false;
+  }
+
+  async obterStatus() {
+    const res = await fetch(`${this.baseUrl}/api/status`);
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(text || `Erro HTTP ${res.status}`);
+    }
+    this.isConnected = true;
+    return res.json();
   }
 
   async verificarConexao() {
     try {
-      const res = await fetch(`${this.baseUrl}/api/status`);
-      this.isConnected = res.ok;
-      return this.isConnected;
+      await this.obterStatus();
+      return true;
     } catch {
       this.isConnected = false;
       return false;
     }
   }
 
-  async enviarMensagem(mensagem, onChunk = null) {
-    const response = await fetch(`${this.baseUrl}/api/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mensagem }),
-    });
+  async streamSse(path, options = {}, onEvent = null) {
+    const response = await fetch(`${this.baseUrl}${path}`, options);
 
     if (!response.ok) {
       const text = await response.text();
@@ -29,12 +34,14 @@ class RositaApiClient {
 
     const reader = response.body.getReader();
     const decoder = new TextDecoder("utf-8");
-    let respostaCompleta = "";
+    let text = "";
     let buffer = "";
+    const events = [];
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
+
       buffer += decoder.decode(value, { stream: true });
       const linhas = buffer.split("\n");
       buffer = linhas.pop() || "";
@@ -42,20 +49,45 @@ class RositaApiClient {
       for (const linha of linhas) {
         if (!linha.startsWith("data: ")) continue;
         const payload = linha.slice(6).trim();
-        if (payload === "[FIM]") return respostaCompleta;
-        if (payload.startsWith("[ERRO]")) throw new Error(payload.replace("[ERRO]", "").trim());
+
+        if (payload === "[FIM]") {
+          return { text, events };
+        }
+
+        if (payload.startsWith("[ERRO]")) {
+          throw new Error(payload.replace("[ERRO]", "").trim());
+        }
+
         let conteudo = payload;
         try {
           conteudo = JSON.parse(payload);
         } catch (_) {}
-        if (typeof conteudo === "string") {
-          respostaCompleta += conteudo;
-          if (typeof onChunk === "function") onChunk(conteudo);
-        }
+
+        events.push(conteudo);
+        if (typeof conteudo === "string") text += conteudo;
+        if (typeof onEvent === "function") onEvent(conteudo);
       }
     }
 
-    return respostaCompleta;
+    return { text, events };
+  }
+
+  async enviarMensagem(mensagem, onChunk = null) {
+    const result = await this.streamSse(
+      "/api/chat",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mensagem }),
+      },
+      (conteudo) => {
+        if (typeof conteudo === "string" && typeof onChunk === "function") {
+          onChunk(conteudo);
+        }
+      }
+    );
+
+    return result.text;
   }
 
   async listarModelos() {
@@ -65,6 +97,20 @@ class RositaApiClient {
       throw new Error(text || `Erro HTTP ${res.status}`);
     }
     return res.json();
+  }
+
+  async baixarModelo(model, onProgress = null) {
+    return this.streamSse(
+      "/api/models/download",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ model }),
+      },
+      (evento) => {
+        if (typeof onProgress === "function") onProgress(evento);
+      }
+    );
   }
 
   async selecionarModelo(model) {
