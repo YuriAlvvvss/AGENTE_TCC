@@ -18,7 +18,7 @@ services:
       ROSITA_TOP_P: ${ROSITA_TOP_P:-0.9}
       ROSITA_REPEAT_PENALTY: ${ROSITA_REPEAT_PENALTY:-1.1}
     volumes:
-      - ./backend/data:/app/backend/data:ro
+      - ./backend/data:/app/backend/data
     ports:
       - "${ROSITA_API_PORT:-18500}:5000"
     depends_on:

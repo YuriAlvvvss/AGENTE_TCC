@@ -123,6 +123,7 @@ Serviços padrão:
 
 Na primeira abertura, se ainda não houver modelo instalado, a própria interface web permite baixar modelos recomendados e acompanhar o progresso em tempo real.
 Nenhum modelo é baixado, ativado ou trocado automaticamente sem ação do usuário.
+Os arquivos em backend/data também podem ser editados pela interface e salvos no ambiente em execução.
 
 Em servidor com placa NVIDIA, o Ollama interno já está preparado para usar GPU automaticamente via suporte nativo do Docker. Para isso, deixe instalados o driver NVIDIA e o NVIDIA Container Toolkit no host.
 
