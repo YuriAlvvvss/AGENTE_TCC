@@ -232,7 +232,7 @@ class AgentModelSelectionTests(unittest.TestCase):
         payload = res.get_json()
         self.assertIn("agent_instructions.txt", payload["files"])
         self.assertIn("regimento_ECIM.txt", payload["files"])
-        self.assertIn("observacoes.md", payload["files"])
+        self.assertNotIn("observacoes.md", payload["files"])
         self.assertNotIn("logo.png", payload["files"])
 
     @patch("rosita.core.agent.ollama.Client")

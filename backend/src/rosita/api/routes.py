@@ -20,7 +20,7 @@ def _sse_chunk_payload(payload: Any) -> str:
 
 def _is_editable_data_file(filename: str) -> bool:
     path = Path(filename)
-    return bool(filename) and path.name == filename and path.suffix.lower() in {".txt", ".md"}
+    return bool(filename) and path.name == filename and path.suffix.lower() in {".txt"}
 
 
 def _resolve_data_file(data_dir: Path, filename: str) -> Path:
