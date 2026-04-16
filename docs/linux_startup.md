@@ -112,6 +112,8 @@ docker compose up --build -d
 
 No Coolify, importe o projeto e selecione o `docker-compose.yml` da raiz do repositório.
 
+Para usar GPU NVIDIA no Ollama interno, o servidor precisa ter o driver da NVIDIA e o NVIDIA Container Toolkit instalados. Com isso, a stack passa a usar a GPU automaticamente. Se quiser escolher uma GPU específica, ajuste `NVIDIA_VISIBLE_DEVICES` no `.env`.
+
 Após a primeira subida, use o frontend para baixar um modelo recomendado e ativá-lo sem precisar entrar no container manualmente.
 
 ## Ajuste de portas

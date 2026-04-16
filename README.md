@@ -122,6 +122,8 @@ Serviços padrão:
 
 Na primeira abertura, se ainda não houver modelo instalado, a própria interface web permite baixar modelos recomendados e acompanhar o progresso em tempo real.
 
+Em servidor com placa NVIDIA, o Ollama interno já está preparado para usar GPU automaticamente. Para isso, deixe instalados o driver NVIDIA e o NVIDIA Container Toolkit no host. Se quiser limitar a uma GPU específica, ajuste `NVIDIA_VISIBLE_DEVICES` no `.env`.
+
 No Coolify, basta importar o repositório e usar o arquivo `docker-compose.yml` da raiz.
 
 ## API
