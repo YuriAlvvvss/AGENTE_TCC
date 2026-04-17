@@ -16,7 +16,10 @@ def create_app() -> Flask:
     agent = criar_agente(settings)
 
     app = Flask(__name__)
-    CORS(app)
+    app.config["SECRET_KEY"] = settings.secret_key
+    app.config["SESSION_COOKIE_HTTPONLY"] = True
+    app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+    CORS(app, supports_credentials=True)
     app.register_blueprint(create_api_blueprint(agent, settings))
 
     @app.get("/")

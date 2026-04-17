@@ -9,6 +9,7 @@ services:
       ROSITA_API_HOST: "0.0.0.0"
       ROSITA_API_PORT: "5000"
       ROSITA_DEBUG: "false"
+      ROSITA_BUNDLED_DATA_DIR: "/app/default-data"
       ROSITA_OLLAMA_HOST: ${ROSITA_OLLAMA_HOST:-http://ollama:11434}
       ROSITA_OLLAMA_MODEL: ${ROSITA_OLLAMA_MODEL:-}
       ROSITA_MAX_HISTORY: ${ROSITA_MAX_HISTORY:-5}

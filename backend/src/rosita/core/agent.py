@@ -249,6 +249,46 @@ class RositaAgent:
                 except Exception:
                     pass
 
+    def descarregar_modelo_ativo(self) -> str:
+        """Descarrega o modelo ativo e limpa a seleção atual."""
+        if self.is_busy:
+            raise RuntimeError("Não é possível descarregar o modelo durante uma resposta em andamento.")
+        if self.is_downloading:
+            raise RuntimeError("Aguarde o fim do download atual antes de descarregar o modelo.")
+
+        modelo = self.current_model
+        if not modelo:
+            raise ValueError("Nenhum modelo ativo para descarregar.")
+
+        self._ensure_ollama_running()
+        self._descarregar_modelo_atual()
+        self.current_model = ""
+        return modelo
+
+    def excluir_modelo(self, modelo: str) -> str:
+        """Remove um modelo instalado do Ollama."""
+        if self.is_busy:
+            raise RuntimeError("Não é possível excluir modelo durante uma resposta em andamento.")
+        if self.is_downloading:
+            raise RuntimeError("Aguarde o fim do download atual antes de excluir o modelo.")
+
+        nome_modelo = (modelo or "").strip()
+        if not nome_modelo:
+            raise ValueError("Modelo inválido.")
+
+        instalados = self.listar_modelos_instalados()
+        if nome_modelo not in instalados:
+            raise ValueError("Modelo não encontrado entre os instalados.")
+
+        if nome_modelo == self.current_model:
+            self.descarregar_modelo_ativo()
+
+        try:
+            self.client.delete(nome_modelo)
+        except Exception as exc:
+            raise RuntimeError(self._formatar_erro_ollama(exc)) from exc
+        return nome_modelo
+
     def baixar_modelo(self, novo_modelo: str) -> Generator[Dict[str, Any], None, None]:
         """Baixa um modelo no Ollama com eventos de progresso para o frontend."""
         if self.is_busy:

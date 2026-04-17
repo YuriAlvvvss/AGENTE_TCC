@@ -34,11 +34,18 @@ class RositaApiClient {
   async request(path, options = {}) {
     let lastError = null;
     const lastCandidate = this.baseUrlCandidates[this.baseUrlCandidates.length - 1];
+    const requestOptions = {
+      credentials: "include",
+      ...options,
+      headers: {
+        ...(options.headers || {}),
+      },
+    };
 
     for (const candidate of this.baseUrlCandidates) {
       const url = `${candidate}${path}`;
       try {
-        const response = await fetch(url, options);
+        const response = await fetch(url, requestOptions);
         if (!response.ok && this.shouldRetryWithNextBase(response) && candidate !== lastCandidate) {
           lastError = new Error(`Erro HTTP ${response.status}`);
           continue;
@@ -68,6 +75,44 @@ class RositaApiClient {
     return res.json();
   }
 
+  async obterSessao() {
+    const res = await this.request("/api/auth/session");
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(text || `Erro HTTP ${res.status}`);
+    }
+    return res.json();
+  }
+
+  async login(username, password) {
+    const res = await this.request("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password }),
+    });
+    if (!res.ok) {
+      let erro = `Erro HTTP ${res.status}`;
+      try {
+        const payload = await res.json();
+        erro = payload.erro || erro;
+      } catch (_) {
+        const text = await res.text();
+        if (text) erro = text;
+      }
+      throw new Error(erro);
+    }
+    return res.json();
+  }
+
+  async logout() {
+    const res = await this.request("/api/auth/logout", { method: "POST" });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(text || `Erro HTTP ${res.status}`);
+    }
+    return res.json();
+  }
+
   async verificarConexao() {
     try {
       await this.obterStatus();
@@ -83,7 +128,12 @@ class RositaApiClient {
 
     if (!response.ok) {
       const text = await response.text();
-      throw new Error(text || `Erro HTTP ${response.status}`);
+      let errorMessage = text || `Erro HTTP ${response.status}`;
+      try {
+        const payload = JSON.parse(text);
+        errorMessage = payload.erro || errorMessage;
+      } catch (_) {}
+      throw new Error(errorMessage);
     }
 
     if (!response.body) {
@@ -174,6 +224,44 @@ class RositaApiClient {
 
   async selecionarModelo(model) {
     const res = await this.request("/api/models/select", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ model }),
+    });
+    if (!res.ok) {
+      let erro = `Erro HTTP ${res.status}`;
+      try {
+        const payload = await res.json();
+        erro = payload.erro || erro;
+      } catch (_) {
+        const text = await res.text();
+        if (text) erro = text;
+      }
+      throw new Error(erro);
+    }
+    return res.json();
+  }
+
+  async descarregarModeloAtual() {
+    const res = await this.request("/api/models/unload", {
+      method: "POST",
+    });
+    if (!res.ok) {
+      let erro = `Erro HTTP ${res.status}`;
+      try {
+        const payload = await res.json();
+        erro = payload.erro || erro;
+      } catch (_) {
+        const text = await res.text();
+        if (text) erro = text;
+      }
+      throw new Error(erro);
+    }
+    return res.json();
+  }
+
+  async excluirModelo(model) {
+    const res = await this.request("/api/models/delete", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ model }),

@@ -7,15 +7,38 @@
   <link rel="stylesheet" href="styles/main.css" />
 </head>
 <body>
-  <div class="app">
+  <section id="auth-view" class="auth-shell">
+    <div class="auth-card">
+      <h1>ROSITA</h1>
+      <p class="subtitle">Acesso ao assistente escolar</p>
+      <form id="login-form" class="auth-form">
+        <label for="login-username">Usuário</label>
+        <input id="login-username" class="user-input" type="text" placeholder="Digite seu usuário" autocomplete="username" />
+
+        <label for="login-password">Senha</label>
+        <input id="login-password" class="user-input" type="password" placeholder="Digite sua senha" autocomplete="current-password" />
+
+        <button id="login-btn" class="btn btn-send" type="submit">Entrar</button>
+      </form>
+      <p id="auth-feedback" class="auth-feedback">Faça login para continuar.</p>
+      <p class="auth-hint">Teste local: admin / admin123 ou usuario / usuario123.</p>
+    </div>
+  </section>
+
+  <div id="app-shell" class="app hidden">
     <header class="header">
       <h1>ROSITA</h1>
       <p class="subtitle">Assistente Escolar - PEI Rosa Bonfiglioli</p>
+      <div class="session-bar">
+        <span id="user-badge" class="user-badge">Visitante</span>
+        <span id="access-hint" class="access-hint">Aguardando autenticação...</span>
+        <button id="logout-btn" class="btn btn-clear" type="button">Sair</button>
+      </div>
       <div id="status" class="status status--offline">Verificando...</div>
       <div id="server-info" class="server-info">Conectando ao servidor de IA...</div>
     </header>
 
-    <section class="telemetry-grid" aria-label="Uso do computador e da GPU">
+    <section id="admin-telemetry" class="telemetry-grid hidden" aria-label="Uso do computador e da GPU">
       <article class="telemetry-card">
         <span class="telemetry-label">Computador</span>
         <strong id="system-host" class="telemetry-value">Carregando...</strong>
@@ -36,6 +59,10 @@
         <span class="telemetry-label">GPU</span>
         <strong id="system-gpu" class="telemetry-value">Carregando...</strong>
       </article>
+      <article class="telemetry-card">
+        <span class="telemetry-label">VRAM</span>
+        <strong id="system-vram" class="telemetry-value">Carregando...</strong>
+      </article>
     </section>
 
     <main class="main">
@@ -47,7 +74,7 @@
       </div>
     </main>
 
-    <section class="settings-card" aria-label="Configurações">
+    <section id="admin-settings" class="settings-card hidden" aria-label="Configurações">
       <div class="settings-header">
         <div>
           <h2 class="settings-title">Configurações</h2>
@@ -73,6 +100,8 @@
           <label for="model-select">Modelo ativo:</label>
           <select id="model-select" class="model-select"></select>
           <button id="reload-models-btn" class="btn btn-secondary" type="button">Atualizar</button>
+          <button id="unload-model-btn" class="btn btn-secondary" type="button">Descarregar atual</button>
+          <button id="delete-model-btn" class="btn btn-danger" type="button">Excluir selecionado</button>
         </div>
       </div>
 

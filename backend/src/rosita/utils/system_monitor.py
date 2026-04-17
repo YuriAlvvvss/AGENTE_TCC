@@ -74,12 +74,16 @@ def _read_gpu_metrics() -> dict[str, Any]:
                     mem_used_mib = _to_float(parts[3] if len(parts) > 3 else None)
                     temp_c = _to_float(parts[4] if len(parts) > 4 else None)
                     driver = parts[5] if len(parts) > 5 else "indisponível"
+                    memory_percent = None
+                    if mem_total_mib and mem_used_mib is not None:
+                        memory_percent = round((float(mem_used_mib) / float(mem_total_mib)) * 100, 1)
                     return {
                         "disponivel": True,
                         "nome": name,
                         "uso_percentual": usage_percent,
                         "memoria_total": _format_bytes((mem_total_mib or 0) * 1024 * 1024),
                         "memoria_usada": _format_bytes((mem_used_mib or 0) * 1024 * 1024),
+                        "memoria_percentual": memory_percent,
                         "temperatura_c": temp_c,
                         "driver": driver,
                         "mensagem": "GPU detectada e pronta para acelerar a IA.",
@@ -95,6 +99,7 @@ def _read_gpu_metrics() -> dict[str, Any]:
             "uso_percentual": None,
             "memoria_total": "indisponível",
             "memoria_usada": "indisponível",
+            "memoria_percentual": None,
             "temperatura_c": None,
             "driver": "indisponível",
             "mensagem": "GPU visível para a aplicação, mas sem leitura detalhada do driver.",
@@ -106,6 +111,7 @@ def _read_gpu_metrics() -> dict[str, Any]:
         "uso_percentual": None,
         "memoria_total": "indisponível",
         "memoria_usada": "indisponível",
+        "memoria_percentual": None,
         "temperatura_c": None,
         "driver": "indisponível",
         "mensagem": "GPU não detectada para uso com o modelo; o Ollama tende a usar CPU neste host.",

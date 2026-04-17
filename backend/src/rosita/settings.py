@@ -21,6 +21,12 @@ class Settings:
     api_port: int
     debug: bool
     chat_options: dict[str, float | int]
+    bundled_data_dir: Path | None = None
+    secret_key: str = "rosita-dev-secret"
+    admin_username: str = "admin"
+    admin_password: str = "admin123"
+    user_username: str = "usuario"
+    user_password: str = "usuario123"
 
 
 def _env_bool(name: str, default: bool) -> bool:
@@ -33,8 +39,22 @@ def _env_bool(name: str, default: bool) -> bool:
 def load_settings() -> Settings:
     """Carrega configurações com suporte a variáveis de ambiente."""
     backend_dir = Path(__file__).resolve().parents[2]
+    package_dir = Path(__file__).resolve().parent
     default_data_dir = backend_dir / "data"
-    data_dir = Path(os.getenv("ROSITA_DATA_DIR", str(default_data_dir)))
+
+    data_dir = Path(os.getenv("ROSITA_DATA_DIR", str(default_data_dir))).expanduser()
+    if not data_dir.is_absolute():
+        data_dir = (backend_dir / data_dir).resolve()
+    else:
+        data_dir = data_dir.resolve()
+
+    bundled_data_dir = Path(
+        os.getenv("ROSITA_BUNDLED_DATA_DIR", str(package_dir / "default_data"))
+    ).expanduser()
+    if not bundled_data_dir.is_absolute():
+        bundled_data_dir = (backend_dir / bundled_data_dir).resolve()
+    else:
+        bundled_data_dir = bundled_data_dir.resolve()
 
     ollama_host = (
         os.getenv("ROSITA_OLLAMA_HOST")
@@ -58,5 +78,11 @@ def load_settings() -> Settings:
             "top_p": float(os.getenv("ROSITA_TOP_P", "0.9")),
             "repeat_penalty": float(os.getenv("ROSITA_REPEAT_PENALTY", "1.1")),
         },
+        bundled_data_dir=bundled_data_dir,
+        secret_key=(os.getenv("ROSITA_SECRET_KEY") or "rosita-dev-secret").strip(),
+        admin_username=(os.getenv("ROSITA_ADMIN_USERNAME") or "admin").strip(),
+        admin_password=os.getenv("ROSITA_ADMIN_PASSWORD", "admin123"),
+        user_username=(os.getenv("ROSITA_USER_USERNAME") or "usuario").strip(),
+        user_password=os.getenv("ROSITA_USER_PASSWORD", "usuario123"),
     )
 
