@@ -37,8 +37,7 @@ services:
               count: all
               capabilities: [gpu]
     depends_on:
-      ollama:
-        condition: service_healthy
+      - ollama
 
   web:
     build:
@@ -46,8 +45,7 @@ services:
       dockerfile: web/Dockerfile
     restart: unless-stopped
     depends_on:
-      backend:
-        condition: service_healthy
+      - backend
     ports:
       - "${ROSITA_WEB_PORT:-18080}:80"
 

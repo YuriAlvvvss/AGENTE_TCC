@@ -23,10 +23,11 @@ class Settings:
     chat_options: dict[str, float | int]
     bundled_data_dir: Path | None = None
     secret_key: str = "rosita-dev-secret"
+    session_cookie_secure: bool = False
     admin_username: str = "admin"
-    admin_password: str = "deumanove"
+    admin_password: str = "admin123"
     user_username: str = "usuario"
-    user_password: str = "deumaoito"
+    user_password: str = "usuario123"
 
 
 def _env_bool(name: str, default: bool) -> bool:
@@ -80,6 +81,7 @@ def load_settings() -> Settings:
         },
         bundled_data_dir=bundled_data_dir,
         secret_key=(os.getenv("ROSITA_SECRET_KEY") or "rosita-dev-secret").strip(),
+        session_cookie_secure=_env_bool("ROSITA_SESSION_COOKIE_SECURE", False),
         admin_username=(os.getenv("ROSITA_ADMIN_USERNAME") or "admin").strip(),
         admin_password=os.getenv("ROSITA_ADMIN_PASSWORD", "admin123"),
         user_username=(os.getenv("ROSITA_USER_USERNAME") or "usuario").strip(),
