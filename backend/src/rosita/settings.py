@@ -24,9 +24,9 @@ class Settings:
     bundled_data_dir: Path | None = None
     secret_key: str = "rosita-dev-secret"
     admin_username: str = "admin"
-    admin_password: str = "admin123"
+    admin_password: str = "deumanove"
     user_username: str = "usuario"
-    user_password: str = "usuario123"
+    user_password: str = "deumaoito"
 
 
 def _env_bool(name: str, default: bool) -> bool:
