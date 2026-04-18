@@ -110,11 +110,21 @@ python agent_cli.py
 1. copie o arquivo `.env.example` para `.env`;
 2. por padrão, o projeto já sobe com um Ollama interno no próprio `docker-compose`;
 3. se quiser usar um servidor de IA externo, ajuste `ROSITA_OLLAMA_HOST` no `.env`;
-4. suba a stack:
+4. suba a stack (**não** use `--build`: não há `build` local; só imagens oficiais são puxadas). O `docker-compose.yml` por omissão **não usa GPU** — serve para portáteis e MiniOS sem placa dedicada (Ollama corre em **CPU**, mais lento mas funcional):
 
 ```bash
-docker compose up --build -d
+docker compose up -d
 ```
+
+Só se tiver **placa NVIDIA** e o **NVIDIA Container Toolkit** instalados no host, use opcionalmente o ficheiro extra `docker-compose.gpu.yml`:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+```
+
+### MiniOS e erro `overlay` / `invalid argument`
+
+Em MiniOS ou live USB o driver **overlay** do Docker pode falhar ao **criar** contentores (mesmo sem `build` no Compose). Isto **não se corrige** no `docker-compose.yml`. Para continuar a usar **`docker compose`**, ative o driver **`vfs`** no host: `sudo ./scripts/enable-docker-vfs-minios.sh` (detalhes em **`docs/linux_startup.md`**). Alternativa sem Docker: **`./start_system.sh`**.
 
 Serviços padrão:
 - Web: `http://SEU_SERVIDOR:18080`
@@ -125,9 +135,11 @@ Na primeira abertura, se ainda não houver modelo instalado, a própria interfac
 Nenhum modelo é baixado, ativado ou trocado automaticamente sem ação do usuário.
 Os arquivos em backend/data também podem ser editados pela interface e salvos no ambiente em execução.
 
-Em servidor com placa NVIDIA, o Ollama interno já está preparado para usar GPU automaticamente via suporte nativo do Docker. Para isso, deixe instalados o driver NVIDIA e o NVIDIA Container Toolkit no host.
+Com GPU, o ficheiro `docker-compose.gpu.yml` acima expõe o Ollama e o backend ao driver NVIDIA (requer toolkit no host).
 
-No Coolify, basta importar o repositório e usar o arquivo `docker-compose.yml` da raiz.
+No Coolify, basta importar o repositório e usar o arquivo `docker-compose.yml` da raiz (CPU). Para GPU no Coolify, acrescente o override `docker-compose.gpu.yml` conforme a documentação da plataforma.
+
+No **MiniOS ou máquina sem GPU**, ignore `docker-compose.gpu.yml` e prefira modelos Ollama **menores** (ex.: `llama3.2:3b`) para resposta aceitável em CPU.
 
 ## API
 

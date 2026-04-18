@@ -1,15 +1,19 @@
+# Sem build local; Ollama e API rodam em CPU (não exige GPU).
+# Subir: docker compose up -d
+# Só com placa NVIDIA + NVIDIA Container Toolkit: docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
 services:
   backend:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
+    image: python:3.11-slim
     restart: unless-stopped
+    working_dir: /app/backend
+    command: ["/bin/sh", "/app/backend/compose-entrypoint.sh"]
     environment:
+      PYTHONDONTWRITEBYTECODE: "1"
       PYTHONUNBUFFERED: "1"
       ROSITA_API_HOST: "0.0.0.0"
       ROSITA_API_PORT: "5000"
       ROSITA_DEBUG: "false"
-      ROSITA_BUNDLED_DATA_DIR: "/app/default-data"
+      ROSITA_BUNDLED_DATA_DIR: "/app/backend/data"
       ROSITA_OLLAMA_HOST: ${ROSITA_OLLAMA_HOST:-http://ollama:11434}
       ROSITA_OLLAMA_MODEL: ${ROSITA_OLLAMA_MODEL:-}
       ROSITA_MAX_HISTORY: ${ROSITA_MAX_HISTORY:-5}
@@ -19,7 +23,7 @@ services:
       ROSITA_TOP_P: ${ROSITA_TOP_P:-0.9}
       ROSITA_REPEAT_PENALTY: ${ROSITA_REPEAT_PENALTY:-1.1}
     volumes:
-      - ./backend/data:/app/backend/data
+      - ./backend:/app/backend
     ports:
       - "${ROSITA_API_PORT:-18500}:5000"
     healthcheck:
@@ -27,34 +31,28 @@ services:
       interval: 15s
       timeout: 10s
       retries: 10
-      start_period: 20s
-    gpus: all
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+      start_period: 180s
     depends_on:
       - ollama
 
   web:
-    build:
-      context: .
-      dockerfile: web/Dockerfile
+    image: nginx:1.27-alpine
     restart: unless-stopped
     depends_on:
       - backend
     ports:
       - "${ROSITA_WEB_PORT:-18080}:80"
+    volumes:
+      - ./web/index.html:/usr/share/nginx/html/index.html:ro
+      - ./web/styles:/usr/share/nginx/html/styles:ro
+      - ./web/scripts:/usr/share/nginx/html/scripts:ro
+      - ./web/nginx.conf:/etc/nginx/conf.d/default.conf:ro
 
   ollama:
     image: ollama/ollama:latest
     restart: unless-stopped
     environment:
       OLLAMA_HOST: "0.0.0.0:11434"
-    gpus: all
     expose:
       - "11434"
     healthcheck:
@@ -62,13 +60,6 @@ services:
       interval: 30s
       timeout: 10s
       retries: 5
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
     volumes:
       - ollama_data:/root/.ollama
 

@@ -1,3 +1,4 @@
+# Imagem opcional (build manual). O Compose usa python:3.11-slim + bind mount — sem build local.
 FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \

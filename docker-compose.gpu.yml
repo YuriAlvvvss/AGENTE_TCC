@@ -1,0 +1,23 @@
+# Opcional — só máquinas COM placa NVIDIA e NVIDIA Container Toolkit.
+# Sem GPU, NÃO use este ficheiro; suba só: docker compose up -d
+# docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+services:
+  backend:
+    gpus: all
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  ollama:
+    gpus: all
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

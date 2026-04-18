@@ -35,6 +35,48 @@ chmod +x start_system.sh
 ./start_system.sh
 ```
 
+## Docker no MiniOS
+
+O `docker-compose.yml` na raiz **não** define `build` para `web` nem `backend`: evita o BuildKit. Comando:
+
+```bash
+docker compose up -d
+```
+
+Não use `docker compose up --build` para forçar build desses serviços. GPU é opcional: ficheiro `docker-compose.gpu.yml` (ver `README.md`).
+
+### Erro `failed to mount ... overlay ... invalid argument` ao subir contentores
+
+Se aparecer **mesmo com** `docker compose up -d` (sem build), o problema **não é o repositório**: o motor do Docker (containerd) não consegue montar **overlay** ao preparar a raiz do contentor a partir das camadas da imagem. Isto é frequente em **MiniOS / live USB / VM** ou quando `/var/lib/docker` está num sistema de ficheiros pouco compatível.
+
+**Opção 1 — Recomendada no MiniOS:** não use Docker para a ROSITA; use o arranque nativo (já instala dependências e trata do Ollama):
+
+```bash
+chmod +x start_system.sh
+./start_system.sh
+```
+
+**Opção 2 — Corrigir o Docker com o driver `vfs`:** usa mais disco e é mais lento, mas costuma funcionar onde o overlay falha.
+
+No repositório há um exemplo e um script (na raiz do clone):
+
+```bash
+cd ~/AGENTE_TCC
+sudo ./scripts/enable-docker-vfs-minios.sh
+```
+
+O script grava a configuração a partir de `docker/minios-vfs-daemon.json`, faz cópia de segurança se já existir `daemon.json` e, se tiver **`jq`**, funde com a configuração antiga; caso contrário pede fusão manual. Reinicia o Docker via `systemctl`.
+
+Se o Docker **recusar iniciar** ou o erro continuar, com o Docker parado pode ser necessário **apagar ou mover** `/var/lib/docker` (mistura de drivers) — **apaga imagens e contentores**; só faça se puder perder isso.
+
+Depois: `docker compose up -d`.
+
+**Manual (sem script):** pare o Docker, edite **`/etc/docker/daemon.json`** com `"storage-driver": "vfs"` (JSON válido; junte a outras chaves se existirem), arranque o Docker de novo.
+
+**Opção 3 — Onde está o Docker:** confirme com `docker info | grep -E 'Docker Root Dir|Storage Driver'`. O diretório de dados não deve estar em **NFS**; **ext4** ou **xfs** local costuma ser o mais seguro.
+
+Resumo: no MiniOS, **`./start_system.sh`** é o caminho mais simples; Docker só fica estável depois de corrigir o **storage driver** no host.
+
 ## Uso recomendado no MiniOS
 
 Se o sistema for mais leve ou tiver pouca RAM, use um modelo menor:
@@ -105,15 +147,15 @@ O padrão já usa o Ollama interno do `docker-compose`. Se preferir apontar para
 ROSITA_OLLAMA_HOST=https://seu-servidor-ia.exemplo.com
 ```
 
-Suba a stack:
+Suba a stack (sem `--build`; por omissão **só CPU**, não exige GPU):
 
 ```bash
-docker compose up --build -d
+docker compose up -d
 ```
 
 No Coolify, importe o projeto e selecione o `docker-compose.yml` da raiz do repositório.
 
-Para usar GPU NVIDIA no Ollama interno, o servidor precisa ter o driver da NVIDIA e o NVIDIA Container Toolkit instalados. Com isso, a stack passa a usar a GPU automaticamente. Se quiser escolher uma GPU específica, ajuste `NVIDIA_VISIBLE_DEVICES` no `.env`.
+Com **placa NVIDIA** e toolkit instalados, pode acrescentar `docker-compose.gpu.yml` (ver `README.md`). Sem GPU, **não** use esse ficheiro. Opcional: `NVIDIA_VISIBLE_DEVICES` no `.env` quando usar o override de GPU.
 
 Após a primeira subida, use o frontend para baixar um modelo recomendado e ativá-lo manualmente, sem precisar entrar no container.
 Nenhum modelo é baixado ou carregado automaticamente pelo projeto.
