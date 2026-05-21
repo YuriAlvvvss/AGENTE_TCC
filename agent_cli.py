@@ -8,7 +8,10 @@ if str(BACKEND_SRC) not in sys.path:
     sys.path.insert(0, str(BACKEND_SRC))
 
 from rosita.bootstrap import criar_agente
-from rosita.settings import load_settings
+try:
+    from rosita.settings import load_settings
+except ImportError:
+    from rosita.config import load_settings
 
 
 def executar_cli() -> None:
