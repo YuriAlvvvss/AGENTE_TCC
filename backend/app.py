@@ -14,6 +14,8 @@ if str(SRC_DIR) not in sys.path:
 from rosita.app_factory import create_app
 from rosita.settings import load_settings
 
+# Carrega .env da raiz do projeto (e opcionalmente backend/.env)
+load_dotenv(BACKEND_DIR.parent / ".env")
 load_dotenv()
 
 app = create_app()
