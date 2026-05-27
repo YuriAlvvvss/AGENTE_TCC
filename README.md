@@ -17,6 +17,12 @@ AGENTE_TCC/
 │   │   ├── agent_instructions.txt
 │   │   └── regimento_ECIM.txt
 │   └── src/rosita/
+│       ├── core/          # agent.py, ai_client.py (Ollama, OpenRouter, Gateway)
+│       ├── api/
+│       ├── utils/
+│       └── settings.py
+├── docker-compose.yml
+├── docker-compose.gpu.yml # override opcional para GPU NVIDIA
 ├── web/
 │   ├── index.html
 │   ├── scripts/
@@ -40,6 +46,46 @@ AGENTE_TCC/
 Arquivo: `backend/data/agent_instructions.txt`
 
 Placeholder suportado: `{REGIMENTO}`.
+
+## Configuracao de provedores de IA
+
+O backend suporta tres provedores (configurados no `.env`):
+
+| Provedor | Variavel principal | Uso |
+|----------|-------------------|-----|
+| **Ollama** | `ROSITA_OLLAMA_HOST`, `ROSITA_OLLAMA_MODEL` | IA local ou remota via Ollama |
+| **OpenRouter** | `ROSITA_OPENROUTER_API_KEY`, `ROSITA_OPENROUTER_MODEL` | Modelos na nuvem (https://openrouter.ai) |
+| **Gateway** | `ROSITA_GATEWAY_URL`, `ROSITA_GATEWAY_MODEL` | Servidor OpenAI-compatible no seu servidor (vLLM, LocalAI, LM Studio, etc.) |
+
+Provedor ativo por padrao:
+
+```env
+ROSITA_AI_PROVIDER=ollama
+```
+
+Valores aceitos: `ollama`, `openrouter` ou `gateway`.
+
+Se mais de um provedor estiver configurado (ex.: Ollama + chave OpenRouter), o administrador pode alternar entre eles na interface ou via API (`GET /api/provedores`, `POST /api/provedores/trocar`).
+
+Exemplo OpenRouter:
+
+```env
+ROSITA_AI_PROVIDER=openrouter
+ROSITA_OPENROUTER_API_KEY=sk-or-v1-xxxxx
+ROSITA_OPENROUTER_MODEL=openai/gpt-4o
+```
+
+Exemplo Gateway (IA local no servidor):
+
+```env
+ROSITA_AI_PROVIDER=gateway
+ROSITA_GATEWAY_URL=http://127.0.0.1:8000
+ROSITA_GATEWAY_MODEL=seu-modelo
+```
+
+O gateway deve expor `GET /v1/models` e `POST /v1/chat/completions` (URL base **sem** `/v1` no final).
+
+Copie `.env.example` para `.env` e preencha as variaveis do provedor desejado.
 
 ## Execucao
 
@@ -115,7 +161,7 @@ python agent_cli.py
 3. se quiser usar um servidor de IA externo, ajuste `ROSITA_OLLAMA_HOST` no `.env`;
 4. para usar OpenRouter, configure `ROSITA_AI_PROVIDER=openrouter`, `ROSITA_OPENROUTER_API_KEY` e `ROSITA_OPENROUTER_MODEL`;
 5. para usar um gateway local (IA rodando no seu servidor), configure `ROSITA_AI_PROVIDER=gateway` e `ROSITA_GATEWAY_URL`;
-4. suba a stack (**não** use `--build`: não há `build` local; só imagens oficiais são puxadas). O `docker-compose.yml` por omissão **não usa GPU** — serve para portáteis e MiniOS sem placa dedicada (Ollama corre em **CPU**, mais lento mas funcional):
+6. suba a stack (**não** use `--build`: não há `build` local; só imagens oficiais são puxadas). O `docker-compose.yml` por omissão **não usa GPU** — serve para portáteis e MiniOS sem placa dedicada (Ollama corre em **CPU**, mais lento mas funcional):
 
 ```bash
 docker compose up -d
@@ -149,10 +195,13 @@ No **MiniOS ou máquina sem GPU**, ignore `docker-compose.gpu.yml` e prefira mod
 ## API
 
 - `GET /`
-- `GET /api/status`
+- `GET /api/status` (inclui `provedor_ia`, `gateway_url` quando aplicavel)
 - `POST /api/chat`
 - `GET /api/historico`
 - `POST /api/limpar`
+- `GET /api/provedores` (admin)
+- `POST /api/provedores/trocar` (admin; body: `{ "provedor": "ollama" | "openrouter" | "gateway" }`)
+- `GET /api/models`, `POST /api/models/select` (admin)
 
 ## Documentacao adicional
 

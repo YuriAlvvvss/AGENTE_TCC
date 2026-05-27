@@ -5,8 +5,10 @@ Objetivo: operar a ROSITA exclusivamente pelo frontend, sem executar `agent_cli.
 ## Fase 1 - Estabilizar backend para consumo web
 
 - Definir `.env` para configuracoes (`ROSITA_API_HOST`, `ROSITA_API_PORT`, `ROSITA_OLLAMA_MODEL`).
+- Suportar multiplos provedores de IA via `ROSITA_AI_PROVIDER` (`ollama`, `openrouter`, `gateway`).
+- Variaveis por provedor: `ROSITA_OPENROUTER_API_KEY`, `ROSITA_OPENROUTER_MODEL`, `ROSITA_GATEWAY_URL`, `ROSITA_GATEWAY_MODEL`.
 - Garantir health checks (`/` e `/api/status`) para monitoramento.
-- Fixar contrato da API (`/api/chat`, `/api/historico`, `/api/limpar`).
+- Fixar contrato da API (`/api/chat`, `/api/historico`, `/api/limpar`, `/api/provedores`).
 - Adicionar tratamento consistente de erro no formato JSON/SSE.
 
 ## Fase 2 - Web como interface principal
@@ -26,6 +28,7 @@ Objetivo: operar a ROSITA exclusivamente pelo frontend, sem executar `agent_cli.
 
 - Rodar Flask com Gunicorn/Waitress (nao usar debug em producao).
 - Colocar backend como servico (Windows Service, Docker ou PM2 equivalente).
+- Deploy Docker: `docker-compose.yml` (CPU); override `docker-compose.gpu.yml` para GPU NVIDIA (requer NVIDIA Container Toolkit).
 - Monitorar logs e disponibilidade.
 - Definir estrategia de backup para arquivos de dados do agente.
 
