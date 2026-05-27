@@ -1,15 +1,15 @@
-"""Agente conversacional ROSITA integrado ao Ollama local ou externo."""
+"""Agente conversacional ROSITA integrado a Ollama ou Open Router."""
 
 from __future__ import annotations
 
-import os
 import shutil
-import subprocess
-import time
 from typing import Any, Dict, Generator, List
 
-import ollama
-
+from rosita.core.ai_client import (
+    AIClient,
+    OllamaClient,
+    create_ai_client,
+)
 from rosita.settings import Settings
 from rosita.utils.validators import validar_pergunta
 
@@ -37,7 +37,7 @@ RECOMMENDED_MODELS: list[dict[str, str]] = [
 
 
 class RositaAgent:
-    """Mantém histórico e gera respostas com streaming via Ollama."""
+    """Mantém histórico e gera respostas com streaming via Ollama ou Open Router."""
 
     def __init__(
         self,
@@ -48,10 +48,44 @@ class RositaAgent:
         self.settings = settings
         self.prompt_sistema = prompt_sistema
         self.documentos_contexto = list(documentos_contexto or [])
+        
+        # Inicializar todos os clientes disponíveis
+        self.ollama_client: AIClient | None = None
+        self.openrouter_client: AIClient | None = None
+        self.gateway_client: AIClient | None = None
+        
+        # Tentar inicializar Ollama
         try:
-            self.client = ollama.Client(host=self.settings.ollama_host)
-        except TypeError:
-            self.client = ollama.Client(self.settings.ollama_host)
+            self.ollama_client = OllamaClient(settings)
+        except Exception:
+            pass
+        
+        # Tentar inicializar Open Router
+        try:
+            if settings.openrouter_api_key:
+                from rosita.core.ai_client import OpenRouterClient
+                self.openrouter_client = OpenRouterClient(settings)
+        except Exception:
+            pass
+        
+        # Tentar inicializar Gateway
+        try:
+            if settings.gateway_url:
+                from rosita.core.ai_client import GatewayClient
+                self.gateway_client = GatewayClient(settings)
+        except Exception:
+            pass
+        
+        # Se nenhum foi inicializado, vamos criar pelo menos o padrão
+        if self.ollama_client is None and self.openrouter_client is None and self.gateway_client is None:
+            try:
+                self.ollama_client = OllamaClient(settings)
+            except Exception as exc:
+                raise RuntimeError(f"Falha ao inicializar clientes de IA: {str(exc)}")
+        
+        # Determinar cliente ativo
+        self.active_provider = self._get_initial_provider()
+        
         self.historico: List[Dict[str, str]] = []
         self.current_model = self._resolver_modelo_inicial()
         self.is_busy = False
@@ -60,86 +94,43 @@ class RositaAgent:
         self.download_status = "idle"
         self.download_percent = 0
 
-    def _usa_cli_local(self) -> bool:
-        """Indica se faz sentido tentar usar a CLI local do Ollama."""
-        host = (self.settings.ollama_host or "").lower()
-        return any(token in host for token in ("127.0.0.1", "localhost")) and bool(
-            shutil.which("ollama")
-        )
+    def _get_initial_provider(self) -> str:
+        """Determina qual provedor usar inicialmente."""
+        # Respeitar a preferência inicial se disponível
+        if self.settings.ai_provider == "gateway" and self.gateway_client:
+            return "gateway"
+        elif self.settings.ai_provider == "openrouter" and self.openrouter_client:
+            return "openrouter"
+        elif self.settings.ai_provider == "ollama" and self.ollama_client:
+            return "ollama"
+        
+        # Fallback para o primeiro disponível
+        if self.gateway_client:
+            return "gateway"
+        elif self.openrouter_client:
+            return "openrouter"
+        elif self.ollama_client:
+            return "ollama"
+        else:
+            return "ollama"
+
+    def _get_active_client(self) -> AIClient:
+        """Retorna o cliente ativo atual."""
+        if self.active_provider == "gateway" and self.gateway_client:
+            return self.gateway_client
+        elif self.active_provider == "openrouter" and self.openrouter_client:
+            return self.openrouter_client
+        elif self.ollama_client:
+            return self.ollama_client
+        raise RuntimeError("Nenhum cliente de IA disponível.")
 
     def _resolver_modelo_inicial(self) -> str:
         """Inicia sem modelo ativo para manter o controle totalmente manual pelo usuário."""
         return ""
 
-    def _formatar_erro_ollama(self, exc: Exception) -> str:
-        """Converte erros de conexão do Ollama em mensagens mais claras para a UI."""
-        detalhe = str(exc).strip()
-        if self._usa_cli_local():
-            base = (
-                f"O Ollama local não está respondendo em {self.settings.ollama_host}. "
-                "Abra o aplicativo Ollama ou execute 'ollama serve'."
-            )
-            return f"{base} Detalhes: {detalhe}" if detalhe else base
-        return detalhe or f"Não foi possível conectar ao Ollama em {self.settings.ollama_host}."
-
-    def _is_connection_error(self, exc: Exception) -> bool:
-        """Identifica falhas transitórias de conexão com o servidor Ollama."""
-        if isinstance(exc, (ConnectionError, OSError, TimeoutError)):
-            return True
-
-        mensagem = str(exc).lower()
-        sinais = (
-            "connection refused",
-            "actively refused",
-            "failed to connect",
-            "max retries exceeded",
-            "timed out",
-            "timeout",
-            "connection error",
-            "connection aborted",
-            "offline",
-            "refused",
-        )
-        return any(sinal in mensagem for sinal in sinais)
-
-    def _start_local_ollama(self) -> None:
-        """Tenta iniciar o Ollama local em background quando o binário está disponível."""
-        kwargs: dict[str, Any] = {
-            "stdout": subprocess.DEVNULL,
-            "stderr": subprocess.DEVNULL,
-        }
-
-        if os.name == "nt":
-            creationflags = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
-            if creationflags:
-                kwargs["creationflags"] = creationflags
-        else:
-            kwargs["start_new_session"] = True
-
-        subprocess.Popen(["ollama", "serve"], **kwargs)
-
-    def _ensure_ollama_running(self) -> Any:
-        """Garante que o servidor Ollama esteja acessível antes das operações do agente."""
-        try:
-            return self.client.list()
-        except Exception as exc:
-            if not self._usa_cli_local() or not self._is_connection_error(exc):
-                raise RuntimeError(self._formatar_erro_ollama(exc)) from exc
-
-        try:
-            self._start_local_ollama()
-        except Exception as exc:
-            raise RuntimeError(self._formatar_erro_ollama(exc)) from exc
-
-        ultimo_erro: Exception | None = None
-        for _ in range(10):
-            try:
-                return self.client.list()
-            except Exception as exc:
-                ultimo_erro = exc
-                time.sleep(1)
-
-        raise RuntimeError(self._formatar_erro_ollama(ultimo_erro or RuntimeError("Ollama indisponível.")))
+    def _is_ollama(self) -> bool:
+        """Verifica se o provedor atual é Ollama."""
+        return isinstance(self._get_active_client(), OllamaClient)
 
     def processar_pergunta(self, pergunta: str) -> Generator[str, None, None]:
         """Valida a pergunta, faz streaming da resposta e persiste histórico."""
@@ -148,7 +139,7 @@ class RositaAgent:
 
         if not self.current_model:
             raise RuntimeError(
-                "Nenhum modelo Ollama está ativo. Selecione um modelo instalado antes de enviar mensagens."
+                "Nenhum modelo está ativo. Selecione um modelo instalado antes de enviar mensagens."
             )
 
         if not validar_pergunta(pergunta, self.settings.max_input_chars):
@@ -162,8 +153,8 @@ class RositaAgent:
         resposta_completa = ""
         self.is_busy = True
         try:
-            self._ensure_ollama_running()
-            stream = self.client.chat(
+            client = self._get_active_client()
+            stream = client.chat(
                 model=self.current_model,
                 messages=mensagens,
                 stream=True,
@@ -204,50 +195,110 @@ class RositaAgent:
         self.documentos_contexto = list(documentos_contexto)
 
     def listar_modelos_instalados(self) -> List[str]:
-        """Lista modelos disponíveis localmente no Ollama."""
-        data = self._ensure_ollama_running()
-        if isinstance(data, dict):
-            entries = data.get("models", [])
-        else:
-            entries = getattr(data, "models", []) or []
-
-        modelos = []
-        for item in entries:
-            if isinstance(item, dict):
-                nome = item.get("model") or item.get("name")
-            else:
-                nome = getattr(item, "model", None) or getattr(item, "name", None)
-            if nome:
-                modelos.append(nome)
-        return sorted(set(modelos))
+        """Lista modelos disponíveis."""
+        try:
+            client = self._get_active_client()
+            return client.list_models()
+        except Exception as exc:
+            raise RuntimeError(f"Erro ao listar modelos: {str(exc)}") from exc
 
     def obter_modelos_recomendados(self) -> List[Dict[str, str]]:
         """Retorna uma lista curta de modelos recomendados para instalação."""
         return list(RECOMMENDED_MODELS)
 
+    def obter_provedores_disponiveis(self) -> List[Dict[str, str]]:
+        """Retorna lista de provedores disponíveis com status."""
+        provedores = []
+        
+        if self.ollama_client:
+            try:
+                self.ollama_client.validate_connection()
+                status = "disponível"
+            except Exception:
+                status = "indisponível"
+            
+            provedores.append({
+                "provider": "ollama",
+                "label": "Ollama",
+                "status": status,
+                "active": self.active_provider == "ollama",
+            })
+        
+        if self.openrouter_client:
+            try:
+                self.openrouter_client.validate_connection()
+                status = "disponível"
+            except Exception:
+                status = "indisponível"
+            
+            provedores.append({
+                "provider": "openrouter",
+                "label": "Open Router",
+                "status": status,
+                "active": self.active_provider == "openrouter",
+            })
+        
+        if self.gateway_client:
+            try:
+                self.gateway_client.validate_connection()
+                status = "disponível"
+            except Exception:
+                status = "indisponível"
+            
+            provedores.append({
+                "provider": "gateway",
+                "label": "Gateway Local",
+                "status": status,
+                "active": self.active_provider == "gateway",
+            })
+        
+        return provedores
+
+    def trocar_provedor(self, novo_provedor: str) -> Dict[str, str | List[str]]:
+        """Troca o provedor ativo e retorna os modelos disponíveis."""
+        if self.is_busy:
+            raise RuntimeError("Não é possível trocar provedor durante uma resposta em andamento.")
+        if self.is_downloading:
+            raise RuntimeError("Aguarde o fim do download atual antes de trocar o provedor.")
+
+        provedor = (novo_provedor or "").strip().lower()
+        
+        # Validar provedor
+        if provedor == "ollama" and not self.ollama_client:
+            raise ValueError("Ollama não está configurado ou disponível.")
+        elif provedor == "openrouter" and not self.openrouter_client:
+            raise ValueError("Open Router não está configurado ou disponível.")
+        elif provedor == "gateway" and not self.gateway_client:
+            raise ValueError("Gateway não está configurado ou disponível.")
+        elif provedor not in ("ollama", "openrouter", "gateway"):
+            raise ValueError(f"Provedor desconhecido: {provedor}")
+        
+        # Limpar modelo ativo ao trocar provedor
+        self.current_model = ""
+        self.active_provider = provedor
+        
+        label_map = {
+            "ollama": "Ollama",
+            "openrouter": "Open Router",
+            "gateway": "Gateway Local",
+        }
+        
+        return {
+            "provedor": provedor,
+            "label": label_map.get(provedor, provedor),
+            "modelos": self.listar_modelos_instalados(),
+        }
+
     def _descarregar_modelo_atual(self) -> None:
-        """Libera o modelo ativo antes de carregar outro."""
-        if not self.current_model:
+        """Libera o modelo ativo antes de carregar outro (apenas para Ollama)."""
+        if not self.current_model or not self._is_ollama():
             return
 
         try:
-            self.client.generate(
-                model=self.current_model,
-                prompt="",
-                stream=False,
-                keep_alive=0,
-            )
+            if isinstance(self.ollama_client, OllamaClient):
+                self.ollama_client.generate_keep_alive_zero(self.current_model)
         except Exception:
-            if self._usa_cli_local():
-                try:
-                    subprocess.run(
-                        ["ollama", "stop", self.current_model],
-                        check=False,
-                        capture_output=True,
-                        text=True,
-                    )
-                except Exception:
-                    pass
+            pass
 
     def descarregar_modelo_ativo(self) -> str:
         """Descarrega o modelo ativo e limpa a seleção atual."""
@@ -256,21 +307,26 @@ class RositaAgent:
         if self.is_downloading:
             raise RuntimeError("Aguarde o fim do download atual antes de descarregar o modelo.")
 
+        if not self._is_ollama():
+            raise RuntimeError("Descarregamento de modelo só é suportado com Ollama.")
+
         modelo = self.current_model
         if not modelo:
             raise ValueError("Nenhum modelo ativo para descarregar.")
 
-        self._ensure_ollama_running()
         self._descarregar_modelo_atual()
         self.current_model = ""
         return modelo
 
     def excluir_modelo(self, modelo: str) -> str:
-        """Remove um modelo instalado do Ollama."""
+        """Remove um modelo instalado (apenas para Ollama)."""
         if self.is_busy:
             raise RuntimeError("Não é possível excluir modelo durante uma resposta em andamento.")
         if self.is_downloading:
             raise RuntimeError("Aguarde o fim do download atual antes de excluir o modelo.")
+
+        if not self._is_ollama():
+            raise RuntimeError("Exclusão de modelo só é suportada com Ollama.")
 
         nome_modelo = (modelo or "").strip()
         if not nome_modelo:
@@ -284,9 +340,10 @@ class RositaAgent:
             self.descarregar_modelo_ativo()
 
         try:
-            self.client.delete(nome_modelo)
+            if isinstance(self.ollama_client, OllamaClient):
+                self.ollama_client.delete_model(nome_modelo)
         except Exception as exc:
-            raise RuntimeError(self._formatar_erro_ollama(exc)) from exc
+            raise RuntimeError(f"Erro ao excluir modelo: {str(exc)}") from exc
         return nome_modelo
 
     def baixar_modelo(self, novo_modelo: str) -> Generator[Dict[str, Any], None, None]:
@@ -296,11 +353,12 @@ class RositaAgent:
         if self.is_downloading:
             raise RuntimeError("Já existe um download de modelo em andamento.")
 
+        if not self._is_ollama():
+            raise RuntimeError("Download de modelo só é suportado com Ollama.")
+
         modelo = (novo_modelo or "").strip()
         if not modelo:
             raise ValueError("Modelo inválido.")
-
-        self._ensure_ollama_running()
 
         self.is_downloading = True
         self.download_model = modelo
@@ -308,47 +366,48 @@ class RositaAgent:
         self.download_percent = 0
 
         try:
-            for evento in self.client.pull(model=modelo, stream=True):
-                status = "Baixando modelo"
-                total = None
-                completed = None
+            if isinstance(self.ollama_client, OllamaClient):
+                for evento in self.ollama_client.client.pull(model=modelo, stream=True):
+                    status = "Baixando modelo"
+                    total = None
+                    completed = None
 
-                if isinstance(evento, dict):
-                    status = str(evento.get("status") or status)
-                    total = evento.get("total")
-                    completed = evento.get("completed")
+                    if isinstance(evento, dict):
+                        status = str(evento.get("status") or status)
+                        total = evento.get("total")
+                        completed = evento.get("completed")
 
-                percentual = self.download_percent
-                if isinstance(total, (int, float)) and total:
-                    percentual = int((float(completed or 0) / float(total)) * 100)
-                    percentual = max(0, min(100, percentual))
-                elif status.lower() in {
-                    "success",
-                    "verifying sha256 digest",
-                    "writing manifest",
-                    "removing any unused layers",
-                }:
-                    percentual = 100
+                    percentual = self.download_percent
+                    if isinstance(total, (int, float)) and total:
+                        percentual = int((float(completed or 0) / float(total)) * 100)
+                        percentual = max(0, min(100, percentual))
+                    elif status.lower() in {
+                        "success",
+                        "verifying sha256 digest",
+                        "writing manifest",
+                        "removing any unused layers",
+                    }:
+                        percentual = 100
 
-                self.download_status = status
-                self.download_percent = percentual
+                    self.download_status = status
+                    self.download_percent = percentual
+                    yield {
+                        "status": status,
+                        "percentual": percentual,
+                        "modelo": modelo,
+                    }
+
+                self.download_status = "Baixado. Selecione o modelo para ativar"
+                self.download_percent = 100
                 yield {
-                    "status": status,
-                    "percentual": percentual,
+                    "status": "Baixado. Selecione o modelo para ativar",
+                    "percentual": 100,
                     "modelo": modelo,
+                    "finalizado": True,
                 }
-
-            self.download_status = "Baixado. Selecione o modelo para ativar"
-            self.download_percent = 100
-            yield {
-                "status": "Baixado. Selecione o modelo para ativar",
-                "percentual": 100,
-                "modelo": modelo,
-                "finalizado": True,
-            }
         except Exception as exc:
             self.download_status = "Falha no download"
-            raise RuntimeError(self._formatar_erro_ollama(exc)) from exc
+            raise RuntimeError(f"Erro ao baixar modelo: {str(exc)}") from exc
         finally:
             self.is_downloading = False
             self.download_model = ""
@@ -357,8 +416,8 @@ class RositaAgent:
         """
         Troca o modelo ativo.
 
-        Para desenvolvimento: descarrega o modelo atual via `ollama stop`
-        e faz um preload leve no novo modelo.
+        Para Ollama: descarrega o modelo atual e faz um preload leve no novo.
+        Para Open Router: apenas atualiza a seleção.
         """
         if self.is_busy:
             raise RuntimeError("Não é possível trocar modelo durante uma resposta em andamento.")
@@ -379,7 +438,16 @@ class RositaAgent:
         if self.current_model:
             self._descarregar_modelo_atual()
 
-        self.client.generate(model=modelo, prompt=".", stream=False, options={"num_predict": 1})
+        # Para Ollama, faz um preload leve
+        if self._is_ollama():
+            try:
+                if isinstance(self.ollama_client, OllamaClient):
+                    self.ollama_client.client.generate(
+                        model=modelo, prompt=".", stream=False, options={"num_predict": 1}
+                    )
+            except Exception:
+                pass
+
         self.current_model = modelo
         return self.current_model
 

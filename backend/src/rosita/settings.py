@@ -13,8 +13,13 @@ class Settings:
 
     base_dir: Path
     data_dir: Path
+    ai_provider: str
     ollama_model: str
     ollama_host: str
+    openrouter_api_key: str
+    openrouter_model: str
+    gateway_url: str
+    gateway_model: str
     max_history: int
     max_input_chars: int
     api_host: str
@@ -66,8 +71,13 @@ def load_settings() -> Settings:
     return Settings(
         base_dir=backend_dir,
         data_dir=data_dir,
+        ai_provider=(os.getenv("ROSITA_AI_PROVIDER") or "ollama").strip().lower(),
         ollama_model=(os.getenv("ROSITA_OLLAMA_MODEL") or "").strip(),
         ollama_host=ollama_host,
+        openrouter_api_key=(os.getenv("ROSITA_OPENROUTER_API_KEY") or "").strip(),
+        openrouter_model=(os.getenv("ROSITA_OPENROUTER_MODEL") or "").strip(),
+        gateway_url=(os.getenv("ROSITA_GATEWAY_URL") or "").strip().rstrip("/"),
+        gateway_model=(os.getenv("ROSITA_GATEWAY_MODEL") or "").strip(),
         max_history=int(os.getenv("ROSITA_MAX_HISTORY", "5")),
         max_input_chars=int(os.getenv("ROSITA_MAX_INPUT_CHARS", "1000")),
         api_host=os.getenv("ROSITA_API_HOST", "0.0.0.0"),

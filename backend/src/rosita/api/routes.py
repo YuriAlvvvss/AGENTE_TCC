@@ -211,7 +211,9 @@ def create_api_blueprint(agent: RositaAgent, settings: Settings) -> Blueprint:
             "agente": "ROSITA",
             "modelo_atual": agent.obter_modelo_atual(),
             "ocupado": agent.is_busy,
+            "provedor_ia": getattr(agent, "active_provider", settings.ai_provider),
             "servidor_ia": settings.ollama_host,
+            "gateway_url": settings.gateway_url,
             "baixando_modelo": agent.is_downloading,
             "status_download": agent.download_status,
             "progresso_download": agent.download_percent,
@@ -392,6 +394,43 @@ def create_api_blueprint(agent: RositaAgent, settings: Settings) -> Blueprint:
     @_require_roles("admin", "user")
     def historico() -> Any:
         return jsonify({"historico": agent.obter_historico()})
+
+    @api_bp.route("/provedores", methods=["GET"])
+    @_require_roles("admin")
+    def provedores() -> Any:
+        """Lista provedores de IA disponíveis."""
+        try:
+            return jsonify({
+                "provedores": agent.obter_provedores_disponiveis(),
+                "ativo": agent.active_provider,
+            })
+        except Exception as exc:
+            return jsonify({"erro": str(exc)}), 500
+
+    @api_bp.route("/provedores/trocar", methods=["POST"])
+    @_require_roles("admin")
+    def trocar_provedor() -> Any:
+        """Troca o provedor ativo e retorna modelos disponíveis."""
+        dados = request.get_json(silent=True)
+        if dados is None or not isinstance(dados, dict):
+            return jsonify({"erro": "JSON inválido ou ausente."}), 400
+
+        provedor = dados.get("provedor")
+        if not isinstance(provedor, str) or not provedor.strip():
+            return jsonify({"erro": "Campo 'provedor' é obrigatório."}), 400
+
+        try:
+            resultado = agent.trocar_provedor(provedor)
+            return jsonify({
+                "mensagem": f"Provedor alterado para {resultado['label']}",
+                **resultado,
+            })
+        except ValueError as exc:
+            return jsonify({"erro": str(exc)}), 400
+        except RuntimeError as exc:
+            return jsonify({"erro": str(exc)}), 409
+        except Exception as exc:
+            return jsonify({"erro": str(exc)}), 500
 
     return api_bp
 

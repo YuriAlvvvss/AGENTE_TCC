@@ -1,6 +1,9 @@
 # ROSITA - Assistente Escolar
 
-Projeto Python com backend Flask + Ollama local ou externo e frontend web.
+Projeto Python com backend Flask e frontend web, com suporte a provedores de IA:
+- Ollama (local ou externo)
+- OpenRouter (API)
+- Gateway local (servidor OpenAI-compatible na sua rede)
 
 ## Estrutura padronizada
 
@@ -110,6 +113,8 @@ python agent_cli.py
 1. copie o arquivo `.env.example` para `.env`;
 2. por padrão, o projeto já sobe com um Ollama interno no próprio `docker-compose`;
 3. se quiser usar um servidor de IA externo, ajuste `ROSITA_OLLAMA_HOST` no `.env`;
+4. para usar OpenRouter, configure `ROSITA_AI_PROVIDER=openrouter`, `ROSITA_OPENROUTER_API_KEY` e `ROSITA_OPENROUTER_MODEL`;
+5. para usar um gateway local (IA rodando no seu servidor), configure `ROSITA_AI_PROVIDER=gateway` e `ROSITA_GATEWAY_URL`;
 4. suba a stack (**não** use `--build`: não há `build` local; só imagens oficiais são puxadas). O `docker-compose.yml` por omissão **não usa GPU** — serve para portáteis e MiniOS sem placa dedicada (Ollama corre em **CPU**, mais lento mas funcional):
 
 ```bash
