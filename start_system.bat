@@ -123,7 +123,7 @@ if not errorlevel 1 (
     goto :fatal
 )
 
-start "ROSITA Backend" cmd /k "cd /d ""%ROOT_DIR%\backend"" && set PYTHONUNBUFFERED=1 && set ROSITA_API_HOST=127.0.0.1 && set ROSITA_API_PORT=%BACKEND_PORT% && set ROSITA_OLLAMA_HOST=%OLLAMA_HOST% && set ROSITA_OLLAMA_MODEL= && ""%VENV_PY%"" app.py"
+start "ROSITA Backend" cmd /k "cd /d ""%ROOT_DIR%\backend"" && set PYTHONUNBUFFERED=1 && set ROSITA_API_HOST=0.0.0.0 && set ROSITA_API_PORT=%BACKEND_PORT% && set ROSITA_OLLAMA_HOST=%OLLAMA_HOST% && set ROSITA_OLLAMA_MODEL= && ""%VENV_PY%"" app.py"
 if errorlevel 1 (
     call :log_error "Nao foi possivel iniciar o backend."
     goto :fatal

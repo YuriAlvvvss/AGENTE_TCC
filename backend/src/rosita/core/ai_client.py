@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import os
 import shutil
+import socket
 import subprocess
+import sys
 import time
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Generator, List
@@ -13,6 +15,66 @@ import ollama
 import requests
 
 from rosita.settings import Settings
+
+
+def _is_network_error(exc: Exception) -> bool:
+    """Identifica se é um erro de rede (DNS, conexão, timeout, etc)."""
+    if isinstance(exc, (socket.gaierror, socket.timeout, ConnectionError, TimeoutError, OSError)):
+        return True
+    
+    mensagem = str(exc).lower()
+    sinais_rede = (
+        "getaddrinfo failed",
+        "connection refused",
+        "actively refused",
+        "failed to connect",
+        "max retries exceeded",
+        "timed out",
+        "timeout",
+        "connection error",
+        "connection aborted",
+        "connection reset",
+        "broken pipe",
+        "offline",
+        "refused",
+        "dns",
+        "name resolution",
+    )
+    return any(sinal in mensagem for sinal in sinais_rede)
+
+
+def _make_request_with_retry(
+    method: str,
+    url: str,
+    max_retries: int = 2,
+    backoff: float = 1.0,
+    **kwargs: Any,
+) -> requests.Response:
+    """Faz requisição HTTP com retry e tratamento melhorado de erros de rede."""
+    last_error = None
+    
+    for tentativa in range(max_retries):
+        try:
+            if method.lower() == "get":
+                return requests.get(url, **kwargs)
+            elif method.lower() == "post":
+                return requests.post(url, **kwargs)
+            else:
+                raise ValueError(f"Método HTTP não suportado: {method}")
+        except Exception as exc:
+            last_error = exc
+            if not _is_network_error(exc):
+                raise
+            
+            if tentativa < max_retries - 1:
+                tempo_espera = backoff * (2 ** tentativa)
+                time.sleep(tempo_espera)
+            else:
+                break
+    
+    if last_error:
+        raise last_error
+    raise RuntimeError("Falha ao fazer requisição após múltiplas tentativas")
 
 
 class AIClient(ABC):
@@ -45,10 +107,19 @@ class OllamaClient(AIClient):
 
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
+        # Suppress stderr durante inicialização do cliente para evitar
+        # mensagens de erro de conexão que já são tratadas adequadamente
+        import io
+        old_stderr = sys.stderr
+        sys.stderr = io.StringIO()
         try:
-            self.client = ollama.Client(host=self.settings.ollama_host)
-        except TypeError:
-            self.client = ollama.Client(self.settings.ollama_host)
+            try:
+                self.client = ollama.Client(host=self.settings.ollama_host)
+            except TypeError:
+                # Versões antigas do ollama podem não ter o parâmetro 'host'
+                self.client = ollama.Client(self.settings.ollama_host)
+        finally:
+            sys.stderr = old_stderr
 
     def _usa_cli_local(self) -> bool:
         """Indica se faz sentido tentar usar a CLI local do Ollama."""
@@ -59,11 +130,12 @@ class OllamaClient(AIClient):
 
     def _is_connection_error(self, exc: Exception) -> bool:
         """Identifica falhas transitórias de conexão com o servidor Ollama."""
-        if isinstance(exc, (ConnectionError, OSError, TimeoutError)):
+        if isinstance(exc, (ConnectionError, OSError, TimeoutError, socket.gaierror)):
             return True
 
         mensagem = str(exc).lower()
         sinais = (
+            "getaddrinfo failed",
             "connection refused",
             "actively refused",
             "failed to connect",
@@ -72,8 +144,12 @@ class OllamaClient(AIClient):
             "timeout",
             "connection error",
             "connection aborted",
+            "connection reset",
+            "broken pipe",
             "offline",
             "refused",
+            "dns",
+            "name resolution",
         )
         return any(sinal in mensagem for sinal in sinais)
 
@@ -217,13 +293,17 @@ class OpenRouterClient(AIClient):
     def validate_connection(self) -> bool:
         """Valida conexão com Open Router."""
         try:
-            response = requests.get(
+            response = _make_request_with_retry(
+                "get",
                 f"{self.BASE_URL}/models",
                 headers={"Authorization": f"Bearer {self.api_key}"},
                 timeout=5,
+                max_retries=1,
             )
             return response.status_code == 200
-        except Exception:
+        except Exception as exc:
+            if isinstance(exc, (socket.gaierror, TimeoutError)) or _is_network_error(exc):
+                return False
             return False
 
     def chat(
@@ -254,12 +334,14 @@ class OpenRouterClient(AIClient):
         }
 
         try:
-            response = requests.post(
+            response = _make_request_with_retry(
+                "post",
                 f"{self.BASE_URL}/chat/completions",
                 headers=headers,
                 json=payload,
                 stream=stream,
                 timeout=60,
+                max_retries=2,
             )
             response.raise_for_status()
 
@@ -297,6 +379,16 @@ class OpenRouterClient(AIClient):
                         }
                     }
 
+        except socket.gaierror as exc:
+            raise RuntimeError(
+                f"Erro de DNS ao conectar com Open Router (openrouter.ai): {str(exc)}. "
+                "Verifique sua conexão de internet e configuração de DNS."
+            ) from exc
+        except (socket.timeout, TimeoutError) as exc:
+            raise RuntimeError(
+                f"Timeout ao conectar com Open Router: {str(exc)}. "
+                "O servidor está respondendo lentamente. Tente novamente."
+            ) from exc
         except requests.exceptions.RequestException as exc:
             raise RuntimeError(
                 f"Erro ao conectar com Open Router: {str(exc)}"
@@ -307,10 +399,12 @@ class OpenRouterClient(AIClient):
         headers = {"Authorization": f"Bearer {self.api_key}"}
 
         try:
-            response = requests.get(
+            response = _make_request_with_retry(
+                "get",
                 f"{self.BASE_URL}/models",
                 headers=headers,
                 timeout=10,
+                max_retries=2,
             )
             response.raise_for_status()
 
@@ -321,6 +415,16 @@ class OpenRouterClient(AIClient):
                     modelos.append(item["id"])
             return sorted(modelos)
 
+        except socket.gaierror as exc:
+            raise RuntimeError(
+                f"Erro de DNS ao listar modelos (openrouter.ai): {str(exc)}. "
+                "Verifique sua conexão de internet e configuração de DNS."
+            ) from exc
+        except (socket.timeout, TimeoutError) as exc:
+            raise RuntimeError(
+                f"Timeout ao listar modelos do Open Router: {str(exc)}. "
+                "O servidor está respondendo lentamente."
+            ) from exc
         except requests.exceptions.RequestException as exc:
             raise RuntimeError(
                 f"Erro ao listar modelos do Open Router: {str(exc)}"
@@ -347,9 +451,11 @@ class GatewayClient(AIClient):
     def validate_connection(self) -> bool:
         """Valida conexão com o gateway."""
         try:
-            response = requests.get(
+            response = _make_request_with_retry(
+                "get",
                 f"{self.base_url}/v1/models",
                 timeout=5,
+                max_retries=1,
             )
             return response.status_code == 200
         except Exception:
@@ -379,12 +485,14 @@ class GatewayClient(AIClient):
         }
 
         try:
-            response = requests.post(
+            response = _make_request_with_retry(
+                "post",
                 f"{self.base_url}/v1/chat/completions",
                 headers=headers,
                 json=payload,
                 stream=stream,
                 timeout=120,
+                max_retries=2,
             )
             response.raise_for_status()
 
@@ -422,6 +530,16 @@ class GatewayClient(AIClient):
                         }
                     }
 
+        except socket.gaierror as exc:
+            raise RuntimeError(
+                f"Erro de DNS ao conectar com o gateway em {self.base_url}: {str(exc)}. "
+                "Verifique o hostname/IP e resolução de DNS."
+            ) from exc
+        except (socket.timeout, TimeoutError) as exc:
+            raise RuntimeError(
+                f"Timeout ao conectar com o gateway em {self.base_url}: {str(exc)}. "
+                "O gateway está respondendo lentamente."
+            ) from exc
         except requests.exceptions.RequestException as exc:
             raise RuntimeError(
                 f"Erro ao conectar com o gateway em {self.base_url}: {str(exc)}"
@@ -430,9 +548,11 @@ class GatewayClient(AIClient):
     def list_models(self) -> List[str]:
         """Lista modelos disponíveis no gateway."""
         try:
-            response = requests.get(
+            response = _make_request_with_retry(
+                "get",
                 f"{self.base_url}/v1/models",
                 timeout=10,
+                max_retries=2,
             )
             response.raise_for_status()
 
@@ -443,6 +563,16 @@ class GatewayClient(AIClient):
                     modelos.append(item["id"])
             return sorted(modelos)
 
+        except socket.gaierror as exc:
+            raise RuntimeError(
+                f"Erro de DNS ao listar modelos do gateway: {str(exc)}. "
+                "Verifique o hostname/IP e resolução de DNS."
+            ) from exc
+        except (socket.timeout, TimeoutError) as exc:
+            raise RuntimeError(
+                f"Timeout ao listar modelos do gateway: {str(exc)}. "
+                "O gateway está respondendo lentamente."
+            ) from exc
         except requests.exceptions.RequestException as exc:
             raise RuntimeError(
                 f"Erro ao listar modelos do gateway: {str(exc)}"
