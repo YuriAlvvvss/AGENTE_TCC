@@ -32,6 +32,12 @@ class RositaApp {
     this.adminPanels = Array.from(document.querySelectorAll(".admin-panel"));
     this.navAdmin = document.getElementById("nav-admin");
     this.charCountEl = document.getElementById("char-count");
+    this.statusPillEl = document.getElementById("status-pill");
+    this.providerPillEl = document.getElementById("provider-pill");
+    this.summaryProviderEl = document.getElementById("summary-provider");
+    this.summaryModelEl = document.getElementById("summary-model");
+    this.summaryLastUpdateEl = document.getElementById("summary-last-update");
+    this.quickActionsEl = document.getElementById("quick-actions");
     this.reloadModelsBtn = document.getElementById("reload-models-btn");
     this.unloadModelBtn = document.getElementById("unload-model-btn");
     this.deleteModelBtn = document.getElementById("delete-model-btn");
@@ -99,6 +105,13 @@ class RositaApp {
       tab.addEventListener("click", () => this.switchAdminTab(tab.dataset.tab));
     });
     this.userInput?.addEventListener("input", () => this.atualizarContadorCaracteres());
+    this.quickActionsEl?.addEventListener("click", (event) => {
+      const button = event.target.closest(".quick-chip");
+      if (!button || !this.userInput) return;
+      this.userInput.value = button.textContent.trim();
+      this.atualizarContadorCaracteres();
+      this.userInput.focus();
+    });
     this.configFileSelect?.addEventListener("change", () => this.carregarArquivoConfiguracao());
     this.reloadConfigBtn?.addEventListener("click", () => this.carregarArquivosConfiguracao());
     this.saveConfigBtn?.addEventListener("click", () => this.salvarArquivoConfiguracao());
@@ -156,7 +169,10 @@ class RositaApp {
 
     this.authView?.classList.toggle("hidden", authenticated);
     this.appShell?.classList.toggle("hidden", !authenticated);
-    this.navAdmin?.classList.toggle("hidden", !this.isAdmin());
+    if (this.navAdmin) {
+      this.navAdmin.disabled = !this.isAdmin();
+      this.navAdmin.classList.toggle("is-disabled", !this.isAdmin());
+    }
     if (!this.isAdmin() && this.navAdmin?.classList.contains("nav-item--active")) {
       this.switchSection("chat");
     }
@@ -191,7 +207,10 @@ class RositaApp {
     this.setAuthFeedback(message || "Faça login para continuar.");
     if (this.statusEl) {
       this.statusEl.textContent = "Login necessário";
-      this.statusEl.className = "status status--offline";
+    }
+    if (this.statusPillEl) {
+      this.statusPillEl.classList.remove("status--online");
+      this.statusPillEl.classList.add("status--offline");
     }
     if (this.serverInfoEl) {
       this.serverInfoEl.textContent = "Entre como administrador ou usuário para acessar a ROSITA.";
@@ -425,7 +444,27 @@ class RositaApp {
 
       if (this.statusEl) {
         this.statusEl.textContent = this.hasActiveModel ? "Online" : "Online • sem modelo ativo";
-        this.statusEl.className = "status status--online";
+      }
+      if (this.statusPillEl) {
+        this.statusPillEl.classList.remove("status--offline");
+        this.statusPillEl.classList.add("status--online");
+      }
+
+      const providerLabel = payload.provedor_ia || payload.servidor_ia || "--";
+      if (this.providerPillEl) {
+        this.providerPillEl.textContent = `Provedor: ${providerLabel}`;
+      }
+      if (this.summaryProviderEl) {
+        this.summaryProviderEl.textContent = providerLabel;
+      }
+      if (this.summaryModelEl) {
+        this.summaryModelEl.textContent = payload.modelo_atual || "Nenhum ativo";
+      }
+      if (this.summaryLastUpdateEl) {
+        this.summaryLastUpdateEl.textContent = new Date().toLocaleTimeString("pt-BR", {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
       }
 
       if (payload.role === "admin") {
@@ -460,7 +499,10 @@ class RositaApp {
     } catch {
       if (this.statusEl) {
         this.statusEl.textContent = "Offline";
-        this.statusEl.className = "status status--offline";
+      }
+      if (this.statusPillEl) {
+        this.statusPillEl.classList.remove("status--online");
+        this.statusPillEl.classList.add("status--offline");
       }
       if (this.serverInfoEl) {
         this.serverInfoEl.textContent = "Não foi possível conectar ao backend.";
