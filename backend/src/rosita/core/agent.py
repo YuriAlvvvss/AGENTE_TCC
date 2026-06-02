@@ -125,7 +125,11 @@ class RositaAgent:
         raise RuntimeError("Nenhum cliente de IA disponível.")
 
     def _resolver_modelo_inicial(self) -> str:
-        """Inicia sem modelo ativo para manter o controle totalmente manual pelo usuário."""
+        """Define modelo inicial conforme o provedor ativo."""
+        if self.active_provider == "openrouter" and self.settings.openrouter_model:
+            return self.settings.openrouter_model
+        if self.active_provider == "gateway" and self.settings.gateway_model:
+            return self.settings.gateway_model
         return ""
 
     def _is_ollama(self) -> bool:

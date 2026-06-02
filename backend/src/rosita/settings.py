@@ -80,8 +80,8 @@ def load_settings() -> Settings:
         gateway_model=(os.getenv("ROSITA_GATEWAY_MODEL") or "").strip(),
         max_history=int(os.getenv("ROSITA_MAX_HISTORY", "5")),
         max_input_chars=int(os.getenv("ROSITA_MAX_INPUT_CHARS", "1000")),
-        api_host=os.getenv("ROSITA_API_HOST", "0.0.0.0"),
-        api_port=int(os.getenv("ROSITA_API_PORT", "5000")),
+        api_host=(os.getenv("ROSITA_API_HOST") or "0.0.0.0").strip(),
+        api_port=int((os.getenv("ROSITA_API_PORT") or "5000").strip()),
         debug=_env_bool("ROSITA_DEBUG", False),
         chat_options={
             "num_predict": int(os.getenv("ROSITA_NUM_PREDICT", "128")),

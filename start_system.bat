@@ -126,26 +126,36 @@ if "%NO_START%"=="1" (
 )
 
 call :log "PASSO 7/7 - Iniciando servicos (backend/web)..."
-call :port_in_use %BACKEND_PORT%
+call :export_service_env
+
+set "BACKEND_URL=http://127.0.0.1:%BACKEND_PORT%/"
+call :service_alive "%BACKEND_URL%"
 if not errorlevel 1 (
-    call :log_error "A porta do backend (%BACKEND_PORT%) ja esta em uso."
-    goto :fatal
-)
-call :port_in_use %WEB_PORT%
-if not errorlevel 1 (
-    call :log_error "A porta do frontend (%WEB_PORT%) ja esta em uso."
-    goto :fatal
+    call :log "Backend ja esta respondendo em %BACKEND_URL%"
+) else (
+    call :port_in_use %BACKEND_PORT%
+    if not errorlevel 1 (
+        call :log_error "A porta do backend (%BACKEND_PORT%) ja esta em uso por outro processo."
+        call :log_error "Feche o processo antigo ou altere ROSITA_API_PORT no .env"
+        goto :fatal
+    )
+    start "ROSITA Backend" cmd /k ""%ROOT_DIR%\scripts\win_run_backend.bat""
+    call :log "Backend iniciado em nova janela (porta %BACKEND_PORT%)."
 )
 
-start "ROSITA Backend" cmd /k "cd /d ""%ROOT_DIR%\backend"" && set PYTHONUNBUFFERED=1 && set ROSITA_API_HOST=0.0.0.0 && set ROSITA_API_PORT=%BACKEND_PORT% && set ROSITA_AI_PROVIDER=%AI_PROVIDER% && set ROSITA_OLLAMA_HOST=%OLLAMA_HOST% && set ROSITA_OLLAMA_MODEL=%OLLAMA_MODEL% && set ROSITA_OPENROUTER_API_KEY=%OPENROUTER_API_KEY% && set ROSITA_OPENROUTER_MODEL=%OPENROUTER_MODEL% && ""%VENV_PY%"" app.py"
-if errorlevel 1 (
-    call :log_error "Nao foi possivel iniciar o backend."
-    goto :fatal
-)
-start "ROSITA Web" cmd /k "cd /d ""%ROOT_DIR%\web"" && ""%VENV_PY%"" -m http.server %WEB_PORT%"
-if errorlevel 1 (
-    call :log_error "Nao foi possivel iniciar o servidor web."
-    goto :fatal
+set "WEB_URL=http://127.0.0.1:%WEB_PORT%/"
+call :service_alive "%WEB_URL%"
+if not errorlevel 1 (
+    call :log "Frontend ja esta respondendo em %WEB_URL%"
+) else (
+    call :port_in_use %WEB_PORT%
+    if not errorlevel 1 (
+        call :log_error "A porta do frontend (%WEB_PORT%) ja esta em uso por outro processo."
+        call :log_error "Feche o processo antigo ou altere ROSITA_WEB_PORT no .env"
+        goto :fatal
+    )
+    start "ROSITA Web" cmd /k ""%ROOT_DIR%\scripts\win_run_web.bat""
+    call :log "Frontend iniciado em nova janela (porta %WEB_PORT%)."
 )
 call :log "PASSO 7/7 - OK."
 
@@ -211,6 +221,7 @@ if /I "%OLLAMA_HOST%"=="http://ollama:11434" (
     set "OLLAMA_HOST=http://127.0.0.1:11434"
     set "USE_LOCAL_OLLAMA=1"
 ) else if /I "%OLLAMA_HOST%"=="http://localhost:11434" (
+    set "OLLAMA_HOST=http://127.0.0.1:11434"
     set "USE_LOCAL_OLLAMA=1"
 ) else if /I "%OLLAMA_HOST%"=="http://127.0.0.1:11434" (
     set "USE_LOCAL_OLLAMA=1"
@@ -385,8 +396,24 @@ if "%PY_CMD%"=="" exit /b 1
 call %PY_CMD% %*
 exit /b %errorlevel%
 
+:export_service_env
+set "PYTHONUNBUFFERED=1"
+set "ROSITA_API_HOST=0.0.0.0"
+set "ROSITA_API_PORT=%BACKEND_PORT%"
+set "ROSITA_WEB_PORT=%WEB_PORT%"
+set "ROSITA_AI_PROVIDER=%AI_PROVIDER%"
+set "ROSITA_OLLAMA_HOST=%OLLAMA_HOST%"
+set "ROSITA_OLLAMA_MODEL=%OLLAMA_MODEL%"
+set "ROSITA_OPENROUTER_API_KEY=%OPENROUTER_API_KEY%"
+set "ROSITA_OPENROUTER_MODEL=%OPENROUTER_MODEL%"
+exit /b 0
+
+:service_alive
+"%VENV_PY%" -c "import urllib.request; urllib.request.urlopen(r'%~1', timeout=3)" >nul 2>&1
+exit /b %errorlevel%
+
 :port_in_use
-netstat -ano | findstr /R /C:":%~1 .*LISTENING" >nul
+netstat -ano | findstr /C:":%~1 " | findstr /I "LISTENING" >nul
 exit /b %errorlevel%
 
 :log
