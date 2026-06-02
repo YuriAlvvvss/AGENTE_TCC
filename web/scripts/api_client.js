@@ -15,14 +15,16 @@ class RositaApiClient {
     };
 
     pushCandidate(explicitBaseUrl);
-    pushCandidate("");
 
     if (typeof window !== "undefined" && window.location) {
-      const { protocol, hostname } = window.location;
+      const { protocol, hostname, port } = window.location;
       if (hostname && (protocol === "http:" || protocol === "https:")) {
-        pushCandidate(`${protocol}//${hostname}:18500`);
+        const apiPort = port === "18080" || port === "" ? "18500" : port;
+        pushCandidate(`${protocol}//${hostname}:${apiPort}`);
       }
     }
+
+    pushCandidate("");
 
     return candidates.length ? candidates : [""];
   }

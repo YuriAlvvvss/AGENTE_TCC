@@ -6,17 +6,17 @@ class RositaApp {
     this.loginUsername = document.getElementById("login-username");
     this.loginPassword = document.getElementById("login-password");
     this.authFeedbackEl = document.getElementById("auth-feedback");
-    this.userBadge = document.getElementById("user-badge");
+    this.userNameEl = document.getElementById("user-name");
+    this.userRoleEl = document.getElementById("user-role");
+    this.userAvatarEl = document.getElementById("user-avatar");
     this.accessHintEl = document.getElementById("access-hint");
     this.logoutBtn = document.getElementById("logout-btn");
-    this.adminTelemetry = document.getElementById("admin-telemetry");
-    this.adminSettings = document.getElementById("admin-settings");
-
     this.chatContainer = document.getElementById("chat-container");
+    this.modelSelectorWrap = document.querySelector(".model-selector");
     this.userInput = document.getElementById("user-input");
     this.sendBtn = document.getElementById("send-btn");
     this.clearBtn = document.getElementById("clear-btn");
-    this.statusEl = document.getElementById("status");
+    this.statusEl = document.getElementById("status") || document.getElementById("status-indicator");
     this.serverInfoEl = document.getElementById("server-info");
     this.systemHostEl = document.getElementById("system-host");
     this.systemCpuEl = document.getElementById("system-cpu");
@@ -25,6 +25,19 @@ class RositaApp {
     this.systemGpuEl = document.getElementById("system-gpu");
     this.systemVramEl = document.getElementById("system-vram");
     this.modelSelect = document.getElementById("model-select");
+    this.modelSelectAdmin = document.getElementById("model-select-admin");
+    this.navItems = Array.from(document.querySelectorAll(".nav-item[data-section]"));
+    this.sections = Array.from(document.querySelectorAll(".main-content > .section"));
+    this.adminTabs = Array.from(document.querySelectorAll(".admin-tab"));
+    this.adminPanels = Array.from(document.querySelectorAll(".admin-panel"));
+    this.navAdmin = document.getElementById("nav-admin");
+    this.charCountEl = document.getElementById("char-count");
+    this.statusPillEl = document.getElementById("status-pill");
+    this.providerPillEl = document.getElementById("provider-pill");
+    this.summaryProviderEl = document.getElementById("summary-provider");
+    this.summaryModelEl = document.getElementById("summary-model");
+    this.summaryLastUpdateEl = document.getElementById("summary-last-update");
+    this.quickActionsEl = document.getElementById("quick-actions");
     this.reloadModelsBtn = document.getElementById("reload-models-btn");
     this.unloadModelBtn = document.getElementById("unload-model-btn");
     this.deleteModelBtn = document.getElementById("delete-model-btn");
@@ -41,9 +54,8 @@ class RositaApp {
     this.reloadConfigBtn = document.getElementById("reload-config-btn");
     this.saveConfigBtn = document.getElementById("save-config-btn");
     this.configFileEditor = document.getElementById("config-file-editor");
-    this.configFileStatusEl = document.getElementById("config-file-status");
-    this.settingsTabs = Array.from(document.querySelectorAll(".settings-tab"));
-    this.settingsPanels = Array.from(document.querySelectorAll(".settings-panel"));
+    this.configFileStatusEl =
+      document.getElementById("config-file-status") || document.getElementById("config-status");
 
     this.session = {
       authenticated: false,
@@ -80,8 +92,25 @@ class RositaApp {
     this.deleteModelBtn?.addEventListener("click", () => this.excluirModeloSelecionado());
     this.downloadBtn?.addEventListener("click", () => this.baixarModelo());
     this.modelSelect?.addEventListener("change", () => this.selecionarModelo());
-    this.settingsTabs.forEach((tab) => {
-      tab.addEventListener("click", () => this.switchSettingsTab(tab.dataset.tab));
+    this.modelSelectAdmin?.addEventListener("change", () => {
+      if (this.modelSelect && this.modelSelectAdmin) {
+        this.modelSelect.value = this.modelSelectAdmin.value;
+      }
+      this.selecionarModelo();
+    });
+    this.navItems.forEach((item) => {
+      item.addEventListener("click", () => this.switchSection(item.dataset.section));
+    });
+    this.adminTabs.forEach((tab) => {
+      tab.addEventListener("click", () => this.switchAdminTab(tab.dataset.tab));
+    });
+    this.userInput?.addEventListener("input", () => this.atualizarContadorCaracteres());
+    this.quickActionsEl?.addEventListener("click", (event) => {
+      const button = event.target.closest(".quick-chip");
+      if (!button || !this.userInput) return;
+      this.userInput.value = button.textContent.trim();
+      this.atualizarContadorCaracteres();
+      this.userInput.focus();
     });
     this.configFileSelect?.addEventListener("change", () => this.carregarArquivoConfiguracao());
     this.reloadConfigBtn?.addEventListener("click", () => this.carregarArquivosConfiguracao());
@@ -140,13 +169,24 @@ class RositaApp {
 
     this.authView?.classList.toggle("hidden", authenticated);
     this.appShell?.classList.toggle("hidden", !authenticated);
-    this.adminTelemetry?.classList.toggle("hidden", !this.isAdmin());
-    this.adminSettings?.classList.toggle("hidden", !this.isAdmin());
+    if (this.navAdmin) {
+      this.navAdmin.disabled = !this.isAdmin();
+      this.navAdmin.classList.toggle("is-disabled", !this.isAdmin());
+    }
+    if (!this.isAdmin() && this.navAdmin?.classList.contains("nav-item--active")) {
+      this.switchSection("chat");
+    }
 
-    if (this.userBadge) {
-      const roleLabel = this.isAdmin() ? "Administrador" : authenticated ? "Usuário" : "Visitante";
-      const username = this.session.username ? ` • ${this.session.username}` : "";
-      this.userBadge.textContent = `${roleLabel}${username}`;
+    const roleLabel = this.isAdmin() ? "Administrador" : authenticated ? "Usuário" : "Visitante";
+    if (this.userNameEl) {
+      this.userNameEl.textContent = this.session.displayName || this.session.username || roleLabel;
+    }
+    if (this.userRoleEl) {
+      this.userRoleEl.textContent = roleLabel;
+    }
+    if (this.userAvatarEl) {
+      const initial = (this.session.username || roleLabel).charAt(0).toUpperCase();
+      this.userAvatarEl.textContent = initial || "U";
     }
 
     if (this.accessHintEl) {
@@ -165,9 +205,16 @@ class RositaApp {
     this.stopModelPolling();
     this.applySession({ authenticated: false, role: "guest", username: "" });
     this.setAuthFeedback(message || "Faça login para continuar.");
-    this.statusEl.textContent = "Login necessário";
-    this.statusEl.className = "status status--offline";
-    this.serverInfoEl.textContent = "Entre como administrador ou usuário para acessar a ROSITA.";
+    if (this.statusEl) {
+      this.statusEl.textContent = "Login necessário";
+    }
+    if (this.statusPillEl) {
+      this.statusPillEl.classList.remove("status--online");
+      this.statusPillEl.classList.add("status--offline");
+    }
+    if (this.serverInfoEl) {
+      this.serverInfoEl.textContent = "Entre como administrador ou usuário para acessar a ROSITA.";
+    }
     this.atualizarSistema({});
   }
 
@@ -246,6 +293,9 @@ class RositaApp {
     if (this.sendBtn) {
       this.sendBtn.disabled = chatDisabled;
     }
+    if (this.modelSelectorWrap) {
+      this.modelSelectorWrap.classList.toggle("hidden", !admin);
+    }
     if (this.modelSelect) {
       this.modelSelect.disabled = !admin || this.isAwaitingResponse || this.isDownloadingModel || !this.hasInstalledModels;
     }
@@ -282,22 +332,47 @@ class RositaApp {
     }
   }
 
-  switchSettingsTab(tabName) {
-    if (!this.isAdmin()) return;
+  switchSection(sectionName) {
+    if (!sectionName) return;
+    if (sectionName === "admin" && !this.isAdmin()) return;
 
-    this.settingsTabs.forEach((tab) => {
+    this.navItems.forEach((item) => {
+      const active = item.dataset.section === sectionName;
+      item.classList.toggle("nav-item--active", active);
+    });
+
+    this.sections.forEach((section) => {
+      const active = section.id === `${sectionName}-section`;
+      section.classList.toggle("section--active", active);
+    });
+  }
+
+  switchAdminTab(tabName) {
+    if (!this.isAdmin() || !tabName) return;
+
+    this.adminTabs.forEach((tab) => {
       const active = tab.dataset.tab === tabName;
+      tab.classList.toggle("admin-tab--active", active);
       tab.classList.toggle("is-active", active);
       tab.setAttribute("aria-selected", active ? "true" : "false");
     });
 
-    this.settingsPanels.forEach((panel) => {
-      panel.classList.toggle("is-active", panel.id === `panel-${tabName}`);
+    this.adminPanels.forEach((panel) => {
+      const active = panel.id === `panel-${tabName}`;
+      panel.classList.toggle("admin-panel--active", active);
+      panel.classList.toggle("is-active", active);
     });
 
     if (tabName === "references" && !this.configFilesLoaded) {
       this.carregarArquivosConfiguracao();
     }
+  }
+
+  atualizarContadorCaracteres() {
+    if (!this.charCountEl || !this.userInput) return;
+    const len = this.userInput.value.length;
+    const max = this.userInput.maxLength || 1000;
+    this.charCountEl.textContent = `${len}/${max}`;
   }
 
   startStatusPolling() {
@@ -358,12 +433,39 @@ class RositaApp {
       const payload = await window.rositaApi.obterStatus();
       this.hasActiveModel = Boolean(payload.modelo_atual);
 
+      const modelStatus = document.getElementById("model-status");
+      if (modelStatus) {
+        modelStatus.textContent = payload.modelo_atual || "Nenhum modelo";
+      }
+
       if (payload.authenticated && payload.role && payload.role !== this.session.role) {
         this.applySession({ ...this.session, ...payload });
       }
 
-      this.statusEl.textContent = this.hasActiveModel ? "Online" : "Online • sem modelo ativo";
-      this.statusEl.className = "status status--online";
+      if (this.statusEl) {
+        this.statusEl.textContent = this.hasActiveModel ? "Online" : "Online • sem modelo ativo";
+      }
+      if (this.statusPillEl) {
+        this.statusPillEl.classList.remove("status--offline");
+        this.statusPillEl.classList.add("status--online");
+      }
+
+      const providerLabel = payload.provedor_ia || payload.servidor_ia || "--";
+      if (this.providerPillEl) {
+        this.providerPillEl.textContent = `Provedor: ${providerLabel}`;
+      }
+      if (this.summaryProviderEl) {
+        this.summaryProviderEl.textContent = providerLabel;
+      }
+      if (this.summaryModelEl) {
+        this.summaryModelEl.textContent = payload.modelo_atual || "Nenhum ativo";
+      }
+      if (this.summaryLastUpdateEl) {
+        this.summaryLastUpdateEl.textContent = new Date().toLocaleTimeString("pt-BR", {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+      }
 
       if (payload.role === "admin") {
         const docs = payload.documentos_contexto || [];
@@ -375,23 +477,36 @@ class RositaApp {
           ? `${gpu.nome || "GPU"}${gpu.uso_percentual == null ? "" : ` • ${this.formatPercent(gpu.uso_percentual)}`}`
           : (gpu.nome || "CPU");
 
-        this.serverInfoEl.textContent = payload.modelo_atual
-          ? `Administrador • Servidor: ${payload.servidor_ia} • Modelo ativo: ${payload.modelo_atual} • GPU: ${gpuResumo} • ${contexto}`
-          : `Administrador • Servidor: ${payload.servidor_ia} • Selecione um modelo para começar • ${contexto}`;
+        if (this.serverInfoEl) {
+          this.serverInfoEl.textContent = payload.modelo_atual
+            ? `Administrador • Servidor: ${payload.servidor_ia} • Modelo ativo: ${payload.modelo_atual} • GPU: ${gpuResumo} • ${contexto}`
+            : `Administrador • Servidor: ${payload.servidor_ia} • Selecione um modelo para começar • ${contexto}`;
+        }
         this.atualizarSistema(payload.sistema || {});
       } else if (payload.role === "user") {
-        this.serverInfoEl.textContent = payload.modelo_atual
-          ? `Usuário • Chat liberado com o modelo ${payload.modelo_atual}.`
-          : "Usuário • O chat ficará disponível quando um administrador ativar um modelo.";
+        if (this.serverInfoEl) {
+          this.serverInfoEl.textContent = payload.modelo_atual
+            ? `Usuário • Chat liberado com o modelo ${payload.modelo_atual}.`
+            : "Usuário • O chat ficará disponível quando um administrador ativar um modelo.";
+        }
         this.atualizarSistema({});
       } else {
-        this.serverInfoEl.textContent = "Entre com suas credenciais para acessar o sistema.";
+        if (this.serverInfoEl) {
+          this.serverInfoEl.textContent = "Entre com suas credenciais para acessar o sistema.";
+        }
         this.atualizarSistema({});
       }
     } catch {
-      this.statusEl.textContent = "Offline";
-      this.statusEl.className = "status status--offline";
-      this.serverInfoEl.textContent = "Não foi possível conectar ao backend.";
+      if (this.statusEl) {
+        this.statusEl.textContent = "Offline";
+      }
+      if (this.statusPillEl) {
+        this.statusPillEl.classList.remove("status--online");
+        this.statusPillEl.classList.add("status--offline");
+      }
+      if (this.serverInfoEl) {
+        this.serverInfoEl.textContent = "Não foi possível conectar ao backend.";
+      }
       this.atualizarSistema({});
     } finally {
       this.updateControls();
@@ -432,16 +547,40 @@ class RositaApp {
     if (!this.tokenStatsEl) return;
     const total = this.currentTokens.length;
     const ultimos = this.currentTokens.slice(-12).join(" | ");
-    this.tokenStatsEl.textContent = `Tokens: ${total}${ultimos ? ` | ${ultimos}` : ""}`;
+    if (this.tokenStatsEl) {
+      this.tokenStatsEl.textContent = `Tokens: ${total}${ultimos ? ` | ${ultimos}` : ""}`;
+    }
+  }
+
+  ensureLoadingOverlay() {
+    this.loadingOverlay = document.getElementById("loading-overlay");
+    this.loadingText = document.getElementById("loading-text");
+    if (this.loadingOverlay) return;
+
+    const overlay = document.createElement("div");
+    overlay.id = "loading-overlay";
+    overlay.className = "loading-overlay";
+    overlay.setAttribute("aria-live", "polite");
+    overlay.setAttribute("aria-busy", "true");
+    overlay.innerHTML =
+      '<div class="loading-card"><div class="spinner" aria-hidden="true"></div><p id="loading-text">Carregando...</p></div>';
+    document.body.appendChild(overlay);
+    this.loadingOverlay = overlay;
+    this.loadingText = document.getElementById("loading-text");
   }
 
   showLoading(text) {
-    this.loadingText.textContent = text || "Carregando...";
-    this.loadingOverlay.classList.remove("hidden");
+    this.ensureLoadingOverlay();
+    const message = text || "Carregando...";
+    if (this.loadingText) {
+      this.loadingText.textContent = message;
+    }
+    this.loadingOverlay?.classList.remove("hidden");
   }
 
   hideLoading() {
-    this.loadingOverlay.classList.add("hidden");
+    this.ensureLoadingOverlay();
+    this.loadingOverlay?.classList.add("hidden");
   }
 
   renderSuggestedModels(models) {
@@ -590,38 +729,56 @@ class RositaApp {
       const current = payload.current_model || "";
 
       this.renderSuggestedModels(payload.recommended_models || []);
-      this.modelSelect.innerHTML = "";
+      const selects = [this.modelSelect, this.modelSelectAdmin].filter(Boolean);
+      selects.forEach((select) => {
+        select.innerHTML = "";
+      });
       this.hasInstalledModels = models.length > 0;
       this.hasActiveModel = Boolean(current);
 
-      if (!models.length) {
-        const option = document.createElement("option");
-        option.value = "";
-        option.textContent = "Nenhum modelo instalado";
-        option.selected = true;
-        this.modelSelect.appendChild(option);
-
-        if (!this.hasShownEmptyModelsTip) {
-          this.adicionarMensagem(
-            "Nenhum modelo está instalado ainda. Escolha uma sugestão acima ou informe um nome de modelo para começar.",
-            "assistant"
-          );
-          this.hasShownEmptyModelsTip = true;
+      const fillSelect = (select) => {
+        if (!models.length) {
+          const option = document.createElement("option");
+          option.value = "";
+          option.textContent = "Nenhum modelo instalado";
+          option.selected = true;
+          select.appendChild(option);
+          return;
         }
-      } else {
+
         const placeholder = document.createElement("option");
         placeholder.value = "";
         placeholder.textContent = current ? "Modelo ativo" : "Selecione um modelo instalado";
         placeholder.selected = !current;
-        this.modelSelect.appendChild(placeholder);
+        select.appendChild(placeholder);
 
         for (const model of models) {
           const option = document.createElement("option");
           option.value = model;
           option.textContent = model;
           if (model === current) option.selected = true;
-          this.modelSelect.appendChild(option);
+          select.appendChild(option);
         }
+      };
+
+      selects.forEach(fillSelect);
+
+      const modelDisplay = document.querySelector("#current-model-display .model-name");
+      if (modelDisplay) {
+        modelDisplay.textContent = current || "Nenhum modelo selecionado";
+      }
+
+      const modelStatus = document.getElementById("model-status");
+      if (modelStatus) {
+        modelStatus.textContent = current || "Nenhum modelo";
+      }
+
+      if (!models.length && !this.hasShownEmptyModelsTip) {
+        this.adicionarMensagem(
+          "Nenhum modelo está instalado ainda. Escolha uma sugestão acima ou informe um nome de modelo para começar.",
+          "assistant"
+        );
+        this.hasShownEmptyModelsTip = true;
       }
 
       if (payload.downloading) {

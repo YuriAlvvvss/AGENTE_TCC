@@ -1,0 +1,174 @@
+🚀 GUIA RÁPIDO DE IMPLANTAÇÃO
+═════════════════════════════════════════════════════════════════
+
+O NOVO FRONTEND JÁ ESTÁ APLICADO! Basta iniciar o sistema:
+
+
+PASSO 1️⃣  - INICIAR O SISTEMA
+────────────────────────────────────────
+
+Windows:
+  1. Clique duplo: c:\AGENTE_TCC\start_system.bat
+  2. Veja os containers iniciando
+  3. Aguarde mensagem "System ready" (~30 segundos)
+
+Linux/Mac:
+  1. Terminal: cd /AGENTE_TCC
+  2. Execute: bash start_system.sh
+  3. Aguarde containers iniciarem
+
+
+PASSO 2️⃣  - ACESSAR E TESTAR
+────────────────────────────────────────
+
+1. Abra seu navegador
+2. Acesse: http://localhost:18080
+3. Faça login:
+
+   USUÁRIO ADMIN (Acesso completo):
+   • Usuario: admin
+   • Senha: admin123
+   • Acesso: Chat + Admin + Status
+
+   USUÁRIO COMUM (Chat apenas):
+   • Usuario: usuario
+   • Senha: usuario123
+   • Acesso: Chat apenas
+
+4. Teste os recursos:
+   ✓ Chat com ROSITA
+   ✓ Seletor de modelos
+   ✓ Admin panel (abas)
+   ✓ Status do sistema
+   ✓ Redimensione: testar mobile/tablet
+
+
+✨ NOVO VISUAL
+────────────────
+
+Aguarde ver:
+  ✓ Logo ROSITA no topo do sidebar
+  ✓ Sidebar escuro elegante no lado esquerdo
+  ✓ Ícones e textos brancos no sidebar
+  ✓ Cores roxas nos botões e links
+  ✓ Chat limpo e organizado
+  ✓ Mensagens em roxo (você) e branco (ROSITA)
+  ✓ Admin panel com 3 abas: Modelo, Referências, Download
+  ✓ Status dashboard com métricas do sistema
+
+
+🆘 SOLUÇÃO DE PROBLEMAS
+────────────────────────────────────────
+
+❌ Página branca/erro ao acessar?
+  → Verifique se backend está rodando: docker ps
+  → Reinicie containers: docker-compose down && docker-compose up -d
+  → Limpe cache do navegador: Ctrl+Shift+Delete
+
+❌ Botões não funcionam?
+  → Verifique console: F12 → Console
+  → Procure por erros vermelhos
+  → Backend deve estar acessível em http://localhost:8000
+
+❌ Chat não envia?
+  → Login pode ter expirado
+  → Verifique se modelo está selecionado
+  → Status do sistema deve estar verde/conectado
+
+❌ Admin panel está vazio?
+  → Faça login com: admin / admin123
+  → Não é user comum (usuario/usuario123)
+  → Não há modelos: baixe um primeiro
+
+
+📋 CHECKLIST DE VALIDAÇÃO
+────────────────────────────────────────
+
+Before deployment:
+  ☐ Sistema iniciado sem erros
+  ☐ Não há erros no console do navegador (F12)
+  ☐ Conexão ao backend está operacional
+
+Auth & Login:
+  ☐ Página de login aparece com design moderno
+  ☐ Login com admin: admin123 funciona
+  ☐ Login com usuario: usuario123 funciona
+  ☐ Logout retorna ao login
+
+UI & Navigation:
+  ☐ Sidebar visível e escuro
+  ☐ Menu items: Chat, Admin, Status aparecem
+  ☐ Clique nos items: seção muda
+  ☐ Ícones aparecem corretamente
+
+Chat:
+  ☐ Mensagens antigas aparecem
+  ☐ Escrever mensagem funciona
+  ☐ Enviar (Enter ou botão) funciona
+  ☐ Respostas aparecem com streaming
+  ☐ Seletor de modelo funciona
+  ☐ Limpar chat funciona
+
+Admin (login como admin):
+  ☐ Aba Model: lista modelos disponíveis
+  ☐ Aba References: mostra arquivos de config
+  ☐ Aba Download: permite baixar modelos
+  ☐ Botões e operações funcionam
+
+Status:
+  ☐ Cards mostram dados do sistema
+  ☐ CPU, RAM, Disco, GPU atualizam
+  ☐ Indicador de conexão verde
+
+Mobile (redimensione para <768px):
+  ☐ Sidebar desaparece
+  ☐ Conteúdo fica full-width
+  ☐ Touch-friendly
+  ☐ Tudo funciona normalmente
+
+
+🎨 PERSONALIZAÇÃO (Opcional)
+────────────────────────────────────────
+
+Quer mudar as cores?
+
+1. Abra: web/styles/main.css
+2. Localize a seção :root (linhas 1-40)
+3. Modifique variáveis:
+   --color-primary: #7c3aed        → Mude para nova cor roxa
+   --color-primary-dark: #6d28d9   → Cor roxa escura
+   --color-sidebar: #0f172a        → Cor do sidebar
+   --color-text: #111827           → Cor do texto
+
+4. Salve
+5. F5 no navegador para recarregar
+
+
+Quer mudar o logo?
+
+1. Abra: web/index.html
+2. Procure por: <svg class="sidebar-icon" (linha ~50)
+3. Modifique o SVG ou substitua por <img>
+4. Salve
+
+
+Quer mudar textos/mensagens?
+
+1. Abra: web/scripts/main.js
+2. Procure pelas strings de texto
+3. Modifique conforme necessário
+4. Salve
+
+
+═══════════════════════════════════════════════════════════════
+
+Status: ✅ PRONTO PARA PRODUÇÃO
+
+Próximos passos:
+  1. Execute: start_system.bat
+  2. Acesse: http://localhost:18080
+  3. Faça login e teste!
+
+Documentação: Veja FRONTEND_MODERNO.md
+
+═══════════════════════════════════════════════════════════════

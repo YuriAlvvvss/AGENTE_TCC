@@ -21,6 +21,9 @@ set "BACKEND_PORT=18500"
 set "WEB_PORT=18080"
 set "OLLAMA_HOST=http://127.0.0.1:11434"
 set "OLLAMA_MODEL="
+set "AI_PROVIDER=ollama"
+set "OPENROUTER_API_KEY="
+set "OPENROUTER_MODEL="
 set "NO_START=0"
 set "SKIP_BROWSER=0"
 set "SHOW_HELP=0"
@@ -40,7 +43,7 @@ call :log "Raiz do projeto: %ROOT_DIR%"
 call :log "Log em arquivo: %START_LOG%"
 call :log "Backend local: %BACKEND_PORT%"
 call :log "Frontend local: %WEB_PORT%"
-call :log "Servidor de IA: %OLLAMA_HOST%"
+call :log "Provider de IA: %AI_PROVIDER%"
 call :log "============================================================"
 
 call :log "PASSO 1/7 - Verificando Python no sistema..."
@@ -48,10 +51,16 @@ call :detect_python
 if errorlevel 1 goto :fatal
 call :log "PASSO 1/7 - OK."
 
-call :log "PASSO 2/7 - Verificando Ollama..."
-call :ensure_ollama
-if errorlevel 1 goto :fatal
-call :log "PASSO 2/7 - OK."
+call :log "PASSO 2/7 - Verificando provider de IA..."
+if /I "%AI_PROVIDER%"=="openrouter" (
+    call :verify_openrouter
+    if errorlevel 1 goto :fatal
+    call :log "PASSO 2/7 - OK (Open Router configurado)."
+) else (
+    call :ensure_ollama
+    if errorlevel 1 goto :fatal
+    call :log "PASSO 2/7 - OK (Ollama pronto)."
+)
 
 call :log "PASSO 3/7 - Criando ambiente virtual (.venv) se necessario..."
 if not exist "%VENV_PY%" (
@@ -103,8 +112,13 @@ if "%NO_START%"=="1" (
     echo Validacao concluida com sucesso.
     echo Backend local: %BACKEND_PORT%
     echo Web local:     %WEB_PORT%
-    echo Servidor IA:   %OLLAMA_HOST%
-    echo Modelos:       selecao manual via interface
+    echo Provider:      %AI_PROVIDER%
+    if /I "%AI_PROVIDER%"=="openrouter" (
+        echo Modelo: %OPENROUTER_MODEL%
+    ) else (
+        echo Ollama: %OLLAMA_HOST%
+        echo Modelos: selecao manual via interface
+    )
     echo Log:           %START_LOG%
     echo ============================================
     call :log "Validacao concluida sem iniciar servicos (--no-start)."
@@ -112,33 +126,44 @@ if "%NO_START%"=="1" (
 )
 
 call :log "PASSO 7/7 - Iniciando servicos (backend/web)..."
-call :port_in_use %BACKEND_PORT%
+call :export_service_env
+
+set "BACKEND_URL=http://127.0.0.1:%BACKEND_PORT%/"
+call :service_alive "%BACKEND_URL%"
 if not errorlevel 1 (
-    call :log_error "A porta do backend (%BACKEND_PORT%) ja esta em uso."
-    goto :fatal
-)
-call :port_in_use %WEB_PORT%
-if not errorlevel 1 (
-    call :log_error "A porta do frontend (%WEB_PORT%) ja esta em uso."
-    goto :fatal
+    call :log "Backend ja esta respondendo em %BACKEND_URL%"
+) else (
+    call :port_in_use %BACKEND_PORT%
+    if not errorlevel 1 (
+        call :log_error "A porta do backend (%BACKEND_PORT%) ja esta em uso por outro processo."
+        call :log_error "Feche o processo antigo ou altere ROSITA_API_PORT no .env"
+        goto :fatal
+    )
+    start "ROSITA Backend" cmd /k ""%ROOT_DIR%\scripts\win_run_backend.bat""
+    call :log "Backend iniciado em nova janela (porta %BACKEND_PORT%)."
 )
 
-start "ROSITA Backend" cmd /k "cd /d ""%ROOT_DIR%\backend"" && set PYTHONUNBUFFERED=1 && set ROSITA_API_HOST=0.0.0.0 && set ROSITA_API_PORT=%BACKEND_PORT% && set ROSITA_OLLAMA_HOST=%OLLAMA_HOST% && set ROSITA_OLLAMA_MODEL= && ""%VENV_PY%"" app.py"
-if errorlevel 1 (
-    call :log_error "Nao foi possivel iniciar o backend."
-    goto :fatal
-)
-start "ROSITA Web" cmd /k "cd /d ""%ROOT_DIR%\web"" && ""%VENV_PY%"" -m http.server %WEB_PORT%"
-if errorlevel 1 (
-    call :log_error "Nao foi possivel iniciar o servidor web."
-    goto :fatal
+set "WEB_URL=http://127.0.0.1:%WEB_PORT%/"
+call :service_alive "%WEB_URL%"
+if not errorlevel 1 (
+    call :log "Frontend ja esta respondendo em %WEB_URL%"
+) else (
+    call :port_in_use %WEB_PORT%
+    if not errorlevel 1 (
+        call :log_error "A porta do frontend (%WEB_PORT%) ja esta em uso por outro processo."
+        call :log_error "Feche o processo antigo ou altere ROSITA_WEB_PORT no .env"
+        goto :fatal
+    )
+    start "ROSITA Web" cmd /k ""%ROOT_DIR%\scripts\win_run_web.bat""
+    call :log "Frontend iniciado em nova janela (porta %WEB_PORT%)."
 )
 call :log "PASSO 7/7 - OK."
 
-timeout /t 2 >nul
+timeout /t 5 >nul
 if not "%SKIP_BROWSER%"=="1" (
-    start "" "http://127.0.0.1:%WEB_PORT%"
-    call :log "Navegador aberto em http://127.0.0.1:%WEB_PORT%."
+    set "URL=http://127.0.0.1:%WEB_PORT%"
+    start "" "%URL%"
+    call :log "Navegador aberto em %URL%."
 ) else (
     call :log "Abertura automatica do navegador foi desativada."
 )
@@ -148,8 +173,12 @@ echo ============================================
 echo Sistema iniciado com sucesso.
 echo Backend: http://127.0.0.1:%BACKEND_PORT%
 echo Web:     http://127.0.0.1:%WEB_PORT%
-echo IA:      %OLLAMA_HOST%
-echo Modelos: selecao manual via interface
+echo Provider: %AI_PROVIDER%
+if /I "%AI_PROVIDER%"=="openrouter" (
+    echo Model: %OPENROUTER_MODEL%
+) else (
+    echo Ollama: %OLLAMA_HOST%
+)
 echo Log:     %START_LOG%
 echo ============================================
 call :log "Inicializacao concluida com sucesso."
@@ -177,18 +206,30 @@ exit /b 0
 :resolve_runtime_config
 if defined ROSITA_API_PORT set "BACKEND_PORT=%ROSITA_API_PORT%"
 if defined ROSITA_WEB_PORT set "WEB_PORT=%ROSITA_WEB_PORT%"
+if defined ROSITA_AI_PROVIDER set "AI_PROVIDER=%ROSITA_AI_PROVIDER%"
 if defined ROSITA_OLLAMA_MODEL set "OLLAMA_MODEL=%ROSITA_OLLAMA_MODEL%"
 if defined ROSITA_OLLAMA_HOST set "OLLAMA_HOST=%ROSITA_OLLAMA_HOST%"
+if defined ROSITA_OPENROUTER_API_KEY set "OPENROUTER_API_KEY=%ROSITA_OPENROUTER_API_KEY%"
+if defined ROSITA_OPENROUTER_MODEL set "OPENROUTER_MODEL=%ROSITA_OPENROUTER_MODEL%"
+
+if /I "%AI_PROVIDER%"=="openrouter" (
+    set "USE_LOCAL_OLLAMA=0"
+    goto :resolve_done
+)
+
 if /I "%OLLAMA_HOST%"=="http://ollama:11434" (
     set "OLLAMA_HOST=http://127.0.0.1:11434"
     set "USE_LOCAL_OLLAMA=1"
 ) else if /I "%OLLAMA_HOST%"=="http://localhost:11434" (
+    set "OLLAMA_HOST=http://127.0.0.1:11434"
     set "USE_LOCAL_OLLAMA=1"
 ) else if /I "%OLLAMA_HOST%"=="http://127.0.0.1:11434" (
     set "USE_LOCAL_OLLAMA=1"
 ) else (
     set "USE_LOCAL_OLLAMA=0"
 )
+
+:resolve_done
 exit /b 0
 
 :ensure_ollama
@@ -247,6 +288,24 @@ if !OLLAMA_RETRY! GEQ 10 exit /b 1
 call :log "Aguardando Ollama iniciar... tentativa !OLLAMA_RETRY!/10"
 timeout /t 2 >nul
 goto :wait_ollama_loop
+
+:verify_openrouter
+if "!OPENROUTER_API_KEY!"=="" (
+    call :log_error "ROSITA_OPENROUTER_API_KEY nao configurada."
+    call :log_error "Configure a variavel de ambiente ou no arquivo .env"
+    exit /b 1
+)
+
+if "!OPENROUTER_MODEL!"=="" (
+    call :log_error "ROSITA_OPENROUTER_MODEL nao configurada."
+    call :log_error "Exemplo: gpt-4-turbo, gpt-3.5-turbo, claude-3-opus, etc"
+    exit /b 1
+)
+
+call :log "Open Router configurado com sucesso."
+call :log "API Key: **** (primeiros 4 caracteres: !OPENROUTER_API_KEY:~0,4!)"
+call :log "Modelo: !OPENROUTER_MODEL!"
+exit /b 0
 
 :install_ollama
 call :log "Tentando instalar Ollama via winget..."
@@ -337,8 +396,24 @@ if "%PY_CMD%"=="" exit /b 1
 call %PY_CMD% %*
 exit /b %errorlevel%
 
+:export_service_env
+set "PYTHONUNBUFFERED=1"
+set "ROSITA_API_HOST=0.0.0.0"
+set "ROSITA_API_PORT=%BACKEND_PORT%"
+set "ROSITA_WEB_PORT=%WEB_PORT%"
+set "ROSITA_AI_PROVIDER=%AI_PROVIDER%"
+set "ROSITA_OLLAMA_HOST=%OLLAMA_HOST%"
+set "ROSITA_OLLAMA_MODEL=%OLLAMA_MODEL%"
+set "ROSITA_OPENROUTER_API_KEY=%OPENROUTER_API_KEY%"
+set "ROSITA_OPENROUTER_MODEL=%OPENROUTER_MODEL%"
+exit /b 0
+
+:service_alive
+"%VENV_PY%" -c "import urllib.request; urllib.request.urlopen(r'%~1', timeout=3)" >nul 2>&1
+exit /b %errorlevel%
+
 :port_in_use
-netstat -ano | findstr /R /C:":%~1 .*LISTENING" >nul
+netstat -ano | findstr /C:":%~1 " | findstr /I "LISTENING" >nul
 exit /b %errorlevel%
 
 :log
