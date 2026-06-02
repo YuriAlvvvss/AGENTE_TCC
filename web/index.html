@@ -12,7 +12,7 @@
     .hidden { display: none !important; }
     .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border-width: 0; }
   </style>
-  <link rel="stylesheet" href="/styles/main.css" />
+  <link rel="stylesheet" href="/styles/main.css?v=20260602b" />
 </head>
 <body>
   <!-- AUTH VIEW -->
@@ -376,8 +376,24 @@
     </main>
   </div>
 
+  <!-- LOADING OVERLAY -->
+  <div id="loading-overlay" class="loading-overlay hidden" aria-live="polite" aria-busy="true">
+    <div class="loading-card">
+      <div class="spinner" aria-hidden="true"></div>
+      <p id="loading-text">Carregando...</p>
+    </div>
+  </div>
+
   <!-- SCRIPTS -->
-  <script src="/scripts/api_client.js" defer></script>
-  <script src="/scripts/main.js" defer></script>
+  <script>
+    (function () {
+      var loc = window.location;
+      var port = loc.port || (loc.protocol === "https:" ? "443" : "80");
+      var apiPort = port === "18080" ? "18500" : port;
+      window.ROSITA_API_BASE_URL = loc.protocol + "//" + loc.hostname + ":" + apiPort;
+    })();
+  </script>
+  <script src="/scripts/api_client.js?v=20260602b" defer></script>
+  <script src="/scripts/main.js?v=20260602b" defer></script>
 </body>
 </html>
