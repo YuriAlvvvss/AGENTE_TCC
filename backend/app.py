@@ -17,6 +17,9 @@ from rosita.settings import load_settings
 # Carrega .env da raiz do projeto (e opcionalmente backend/.env)
 load_dotenv(BACKEND_DIR.parent / ".env")
 load_dotenv()
+# A configuração salva pelo painel admin (backend/.env) tem prioridade, para
+# que as credenciais escolhidas na interface persistam entre reinícios.
+load_dotenv(BACKEND_DIR / ".env", override=True)
 
 app = create_app()
 settings = load_settings()

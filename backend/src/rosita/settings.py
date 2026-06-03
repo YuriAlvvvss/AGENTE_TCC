@@ -20,6 +20,7 @@ class Settings:
     openrouter_model: str
     gateway_url: str
     gateway_model: str
+    gateway_api_key: str
     max_history: int
     max_input_chars: int
     api_host: str
@@ -78,6 +79,7 @@ def load_settings() -> Settings:
         openrouter_model=(os.getenv("ROSITA_OPENROUTER_MODEL") or "").strip(),
         gateway_url=(os.getenv("ROSITA_GATEWAY_URL") or "").strip().rstrip("/"),
         gateway_model=(os.getenv("ROSITA_GATEWAY_MODEL") or "").strip(),
+        gateway_api_key=(os.getenv("ROSITA_GATEWAY_API_KEY") or "").strip(),
         max_history=int(os.getenv("ROSITA_MAX_HISTORY", "5")),
         max_input_chars=int(os.getenv("ROSITA_MAX_INPUT_CHARS", "1000")),
         api_host=(os.getenv("ROSITA_API_HOST") or "0.0.0.0").strip(),

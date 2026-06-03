@@ -12,6 +12,7 @@ from flask import Blueprint, Response, jsonify, request, session
 from rosita.bootstrap import montar_contexto_agente
 from rosita.core.agent import RositaAgent
 from rosita.settings import Settings
+from rosita.utils.env_manager import update_env_file
 from rosita.utils.file_loader import garantir_documentos_padrao
 from rosita.utils.system_monitor import get_system_snapshot
 from rosita.utils.validators import validar_pergunta
@@ -212,8 +213,8 @@ def create_api_blueprint(agent: RositaAgent, settings: Settings) -> Blueprint:
             "modelo_atual": agent.obter_modelo_atual(),
             "ocupado": agent.is_busy,
             "provedor_ia": getattr(agent, "active_provider", settings.ai_provider),
-            "servidor_ia": settings.ollama_host,
-            "gateway_url": settings.gateway_url,
+            "servidor_ia": agent.settings.ollama_host,
+            "gateway_url": agent.settings.gateway_url,
             "baixando_modelo": agent.is_downloading,
             "status_download": agent.download_status,
             "progresso_download": agent.download_percent,
@@ -431,6 +432,95 @@ def create_api_blueprint(agent: RositaAgent, settings: Settings) -> Blueprint:
             return jsonify({"erro": str(exc)}), 409
         except Exception as exc:
             return jsonify({"erro": str(exc)}), 500
+
+    @api_bp.route("/credenciais", methods=["GET"])
+    @_require_roles("admin")
+    def obter_credenciais() -> Any:
+        """Retorna a configuração atual do provedor de IA (sem expor a API key)."""
+        try:
+            return jsonify({
+                **agent.obter_config(),
+                "provedores": agent.obter_provedores_disponiveis(),
+            })
+        except Exception as exc:
+            return jsonify({"erro": str(exc)}), 500
+
+    @api_bp.route("/credenciais", methods=["PUT", "POST"])
+    @_require_roles("admin")
+    def salvar_credenciais() -> Any:
+        """Aplica e persiste a configuração do provedor (Ollama/OpenRouter/Gateway)."""
+        dados = request.get_json(silent=True)
+        if dados is None or not isinstance(dados, dict):
+            return jsonify({"erro": "JSON inválido ou ausente."}), 400
+
+        mudancas: dict[str, str] = {}
+        for campo in (
+            "ai_provider",
+            "ollama_host",
+            "ollama_model",
+            "openrouter_model",
+            "gateway_url",
+            "gateway_model",
+        ):
+            valor = dados.get(campo)
+            if isinstance(valor, str):
+                mudancas[campo] = valor.strip()
+
+        # O host do Ollama nunca deve ser apagado para vazio (deixaria o Ollama
+        # sem endereço). Se vier em branco, mantém o valor atual.
+        if not mudancas.get("ollama_host", "").strip():
+            mudancas.pop("ollama_host", None)
+
+        # As API keys só são alteradas quando enviadas e não-vazias, para não
+        # apagar a credencial existente acidentalmente. Para limpar, use o
+        # respectivo campo limpar_*.
+        api_key = dados.get("openrouter_api_key")
+        if isinstance(api_key, str) and api_key.strip():
+            mudancas["openrouter_api_key"] = api_key.strip()
+        if dados.get("limpar_openrouter_api_key") is True:
+            mudancas["openrouter_api_key"] = ""
+
+        gateway_key = dados.get("gateway_api_key")
+        if isinstance(gateway_key, str) and gateway_key.strip():
+            mudancas["gateway_api_key"] = gateway_key.strip()
+        if dados.get("limpar_gateway_api_key") is True:
+            mudancas["gateway_api_key"] = ""
+
+        try:
+            agent.reconfigurar(**mudancas)
+        except ValueError as exc:
+            return jsonify({"erro": str(exc)}), 400
+        except RuntimeError as exc:
+            return jsonify({"erro": str(exc)}), 409
+        except Exception as exc:
+            return jsonify({"erro": str(exc)}), 500
+
+        config_atual = agent.obter_config()
+        env_values = {
+            "ROSITA_AI_PROVIDER": agent.active_provider,
+            "ROSITA_OLLAMA_HOST": agent.settings.ollama_host,
+            "ROSITA_OLLAMA_MODEL": agent.settings.ollama_model,
+            "ROSITA_OPENROUTER_API_KEY": agent.settings.openrouter_api_key,
+            "ROSITA_OPENROUTER_MODEL": agent.settings.openrouter_model,
+            "ROSITA_GATEWAY_URL": agent.settings.gateway_url,
+            "ROSITA_GATEWAY_MODEL": agent.settings.gateway_model,
+            "ROSITA_GATEWAY_API_KEY": agent.settings.gateway_api_key,
+        }
+        try:
+            update_env_file(agent.settings.base_dir / ".env", env_values)
+        except Exception as exc:
+            return jsonify({
+                "mensagem": "Configuração aplicada, mas não foi possível persistir no .env.",
+                "aviso": str(exc),
+                **config_atual,
+                "provedores": agent.obter_provedores_disponiveis(),
+            })
+
+        return jsonify({
+            "mensagem": "Configuração salva e aplicada com sucesso.",
+            **config_atual,
+            "provedores": agent.obter_provedores_disponiveis(),
+        })
 
     return api_bp
 

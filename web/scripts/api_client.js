@@ -325,6 +325,50 @@ class RositaApiClient {
     if (!res.ok) throw new Error(`Erro HTTP ${res.status}`);
     return res.json();
   }
+
+  async _parseErro(res) {
+    let erro = `Erro HTTP ${res.status}`;
+    try {
+      const payload = await res.json();
+      erro = payload.erro || erro;
+    } catch (_) {
+      const text = await res.text();
+      if (text) erro = text;
+    }
+    return erro;
+  }
+
+  async obterProvedores() {
+    const res = await this.request("/api/provedores");
+    if (!res.ok) throw new Error(await this._parseErro(res));
+    return res.json();
+  }
+
+  async trocarProvedor(provedor) {
+    const res = await this.request("/api/provedores/trocar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ provedor }),
+    });
+    if (!res.ok) throw new Error(await this._parseErro(res));
+    return res.json();
+  }
+
+  async obterCredenciais() {
+    const res = await this.request("/api/credenciais");
+    if (!res.ok) throw new Error(await this._parseErro(res));
+    return res.json();
+  }
+
+  async salvarCredenciais(config) {
+    const res = await this.request("/api/credenciais", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(config || {}),
+    });
+    if (!res.ok) throw new Error(await this._parseErro(res));
+    return res.json();
+  }
 }
 
 window.rositaApi = new RositaApiClient();

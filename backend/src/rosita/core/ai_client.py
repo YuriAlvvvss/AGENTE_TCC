@@ -447,6 +447,14 @@ class GatewayClient(AIClient):
         self.base_url = settings.gateway_url
         if not self.base_url:
             raise ValueError("ROSITA_GATEWAY_URL não configurada")
+        self.api_key = settings.gateway_api_key
+
+    def _auth_headers(self, extra: dict | None = None) -> dict:
+        """Monta cabeçalhos, incluindo Authorization quando há API key."""
+        headers = dict(extra or {})
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        return headers
 
     def validate_connection(self) -> bool:
         """Valida conexão com o gateway."""
@@ -454,6 +462,7 @@ class GatewayClient(AIClient):
             response = _make_request_with_retry(
                 "get",
                 f"{self.base_url}/v1/models",
+                headers=self._auth_headers(),
                 timeout=5,
                 max_retries=1,
             )
@@ -480,9 +489,7 @@ class GatewayClient(AIClient):
             "max_tokens": chat_options.get("num_predict", 128),
         }
 
-        headers = {
-            "Content-Type": "application/json",
-        }
+        headers = self._auth_headers({"Content-Type": "application/json"})
 
         try:
             response = _make_request_with_retry(
@@ -551,6 +558,7 @@ class GatewayClient(AIClient):
             response = _make_request_with_retry(
                 "get",
                 f"{self.base_url}/v1/models",
+                headers=self._auth_headers(),
                 timeout=10,
                 max_retries=2,
             )

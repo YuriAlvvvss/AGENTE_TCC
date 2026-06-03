@@ -1113,3 +1113,57 @@ textarea:disabled {
     opacity: 0.45;
   }
 }
+
+/* ===== Aba "Provedor de IA" ===== */
+.provider-field {
+  margin-bottom: 16px;
+}
+
+.provider-field:last-child {
+  margin-bottom: 0;
+}
+
+.provider-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.provider-hint code {
+  background: var(--color-surface-muted);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 11px;
+}
+
+.provider-status-line {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+/* Cada grupo de credenciais só aparece quando o provedor está selecionado. */
+.provider-group {
+  display: none;
+}
+
+.provider-group--active {
+  display: block;
+}
+
+.provider-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.status-message.is-error {
+  color: var(--color-danger);
+}
+
+.provider-optional {
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}

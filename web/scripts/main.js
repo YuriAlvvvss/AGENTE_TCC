@@ -57,6 +57,22 @@ class RositaApp {
     this.configFileStatusEl =
       document.getElementById("config-file-status") || document.getElementById("config-status");
 
+    // Configuração do provedor de IA (aba "Provedor de IA").
+    this.providerSelect = document.getElementById("provider-select");
+    this.providerStatusLine = document.getElementById("provider-status-line");
+    this.providerGroups = Array.from(document.querySelectorAll("[data-provider-group]"));
+    this.ollamaHostInput = document.getElementById("ollama-host-input");
+    this.openrouterKeyInput = document.getElementById("openrouter-key-input");
+    this.openrouterKeyHint = document.getElementById("openrouter-key-hint");
+    this.openrouterModelInput = document.getElementById("openrouter-model-input");
+    this.gatewayUrlInput = document.getElementById("gateway-url-input");
+    this.gatewayModelInput = document.getElementById("gateway-model-input");
+    this.gatewayKeyInput = document.getElementById("gateway-key-input");
+    this.gatewayKeyHint = document.getElementById("gateway-key-hint");
+    this.saveProviderBtn = document.getElementById("save-provider-btn");
+    this.reloadProviderBtn = document.getElementById("reload-provider-btn");
+    this.providerConfigStatusEl = document.getElementById("provider-config-status");
+
     this.session = {
       authenticated: false,
       role: "guest",
@@ -72,10 +88,12 @@ class RositaApp {
     this.modelRefreshTimer = null;
     this.selectedConfigFile = "";
     this.configFilesLoaded = false;
+    this.providerConfigLoaded = false;
     this.statusTimer = null;
 
     this.bindEvents();
     this.updateControls();
+    this.atualizarVisibilidadeProvedor();
     this.initialize();
   }
 
@@ -115,6 +133,10 @@ class RositaApp {
     this.configFileSelect?.addEventListener("change", () => this.carregarArquivoConfiguracao());
     this.reloadConfigBtn?.addEventListener("click", () => this.carregarArquivosConfiguracao());
     this.saveConfigBtn?.addEventListener("click", () => this.salvarArquivoConfiguracao());
+
+    this.providerSelect?.addEventListener("change", () => this.atualizarVisibilidadeProvedor());
+    this.saveProviderBtn?.addEventListener("click", () => this.salvarConfiguracaoProvedor());
+    this.reloadProviderBtn?.addEventListener("click", () => this.carregarConfiguracaoProvedor());
 
     this.userInput?.addEventListener("keypress", (event) => {
       if (event.key === "Enter" && !this.isAwaitingResponse && this.hasActiveModel && this.session.authenticated) {
@@ -365,6 +387,9 @@ class RositaApp {
 
     if (tabName === "references" && !this.configFilesLoaded) {
       this.carregarArquivosConfiguracao();
+    }
+    if (tabName === "provider" && !this.providerConfigLoaded) {
+      this.carregarConfiguracaoProvedor();
     }
   }
 
@@ -714,6 +739,147 @@ class RositaApp {
       await this.verificarStatus();
     } catch (err) {
       this.setConfigStatus(`Erro ao salvar referência: ${err.message || String(err)}`);
+    }
+  }
+
+  setProviderStatus(message, isError = false) {
+    if (!this.providerConfigStatusEl) return;
+    this.providerConfigStatusEl.textContent = message || "";
+    this.providerConfigStatusEl.classList.toggle("is-error", Boolean(isError));
+  }
+
+  atualizarVisibilidadeProvedor() {
+    const ativo = this.providerSelect?.value || "ollama";
+    this.providerGroups.forEach((group) => {
+      const isActive = group.dataset.providerGroup === ativo;
+      group.classList.toggle("provider-group--active", isActive);
+    });
+  }
+
+  preencherProvedorStatusLine(provedores = []) {
+    if (!this.providerStatusLine) return;
+    if (!Array.isArray(provedores) || !provedores.length) {
+      this.providerStatusLine.textContent = "";
+      return;
+    }
+    const partes = provedores.map((p) => {
+      const ativo = p.active ? " (ativo)" : "";
+      return `${p.label}: ${p.status}${ativo}`;
+    });
+    this.providerStatusLine.textContent = partes.join(" • ");
+  }
+
+  async carregarConfiguracaoProvedor() {
+    if (!this.isAdmin()) return;
+
+    this.setProviderStatus("Carregando configuração...");
+    try {
+      const config = await window.rositaApi.obterCredenciais();
+
+      if (this.providerSelect && config.ai_provider) {
+        this.providerSelect.value = config.ai_provider;
+      }
+      if (this.ollamaHostInput) this.ollamaHostInput.value = config.ollama_host || "";
+      if (this.openrouterModelInput) this.openrouterModelInput.value = config.openrouter_model || "";
+      if (this.gatewayUrlInput) this.gatewayUrlInput.value = config.gateway_url || "";
+      if (this.gatewayModelInput) this.gatewayModelInput.value = config.gateway_model || "";
+
+      // As API keys nunca voltam do servidor; mostramos apenas se já estão configuradas.
+      if (this.gatewayKeyInput) {
+        this.gatewayKeyInput.value = "";
+        this.gatewayKeyInput.placeholder = config.gateway_api_key_set
+          ? "•••••••• (configurada — deixe em branco para manter)"
+          : "Bearer token, se o gateway exigir";
+      }
+      if (this.gatewayKeyHint) {
+        this.gatewayKeyHint.textContent = config.gateway_api_key_set
+          ? "Uma chave já está salva. Preencha apenas para substituí-la."
+          : "Enviada como Authorization: Bearer. Deixe em branco se o gateway for aberto.";
+      }
+      if (this.openrouterKeyInput) {
+        this.openrouterKeyInput.value = "";
+        this.openrouterKeyInput.placeholder = config.openrouter_api_key_set
+          ? "•••••••• (configurada — deixe em branco para manter)"
+          : "sk-or-...";
+      }
+      if (this.openrouterKeyHint) {
+        this.openrouterKeyHint.textContent = config.openrouter_api_key_set
+          ? "Uma chave já está salva. Preencha apenas se quiser substituí-la."
+          : "A chave é gravada apenas no servidor e nunca é devolvida ao navegador.";
+      }
+
+      this.atualizarVisibilidadeProvedor();
+      this.preencherProvedorStatusLine(config.provedores);
+      this.providerConfigLoaded = true;
+      this.setProviderStatus("Configuração carregada.");
+    } catch (err) {
+      this.setProviderStatus(`Erro ao carregar configuração: ${err.message || String(err)}`, true);
+    }
+  }
+
+  async salvarConfiguracaoProvedor() {
+    if (!this.isAdmin()) return;
+
+    const provedor = this.providerSelect?.value || "ollama";
+    const payload = {
+      ai_provider: provedor,
+      ollama_host: (this.ollamaHostInput?.value || "").trim(),
+      openrouter_model: (this.openrouterModelInput?.value || "").trim(),
+      gateway_url: (this.gatewayUrlInput?.value || "").trim(),
+      gateway_model: (this.gatewayModelInput?.value || "").trim(),
+    };
+
+    // Só envia as API keys se o usuário digitou algo (evita apagar a existente).
+    const apiKey = (this.openrouterKeyInput?.value || "").trim();
+    if (apiKey) payload.openrouter_api_key = apiKey;
+    const gatewayKey = (this.gatewayKeyInput?.value || "").trim();
+    if (gatewayKey) payload.gateway_api_key = gatewayKey;
+
+    // Validação básica no cliente para feedback imediato.
+    if (provedor === "openrouter") {
+      const semChaveSalva = (this.openrouterKeyInput?.placeholder || "").startsWith("sk-or-");
+      if (!apiKey && semChaveSalva) {
+        this.setProviderStatus("Informe a API Key do Open Router para usar esse provedor.", true);
+        return;
+      }
+      if (!payload.openrouter_model) {
+        this.setProviderStatus("Informe o modelo do Open Router (ex: openai/gpt-4o-mini).", true);
+        return;
+      }
+    }
+    if (provedor === "gateway") {
+      if (!payload.gateway_url) {
+        this.setProviderStatus("Informe a URL base do gateway.", true);
+        return;
+      }
+      if (!payload.gateway_model) {
+        this.setProviderStatus("Informe o modelo do gateway.", true);
+        return;
+      }
+    }
+
+    if (this.saveProviderBtn) this.saveProviderBtn.disabled = true;
+    this.showLoading("Aplicando configuração do provedor...");
+    try {
+      const resposta = await window.rositaApi.salvarCredenciais(payload);
+      this.preencherProvedorStatusLine(resposta.provedores);
+      this.setProviderStatus(resposta.aviso
+        ? `${resposta.mensagem} Aviso: ${resposta.aviso}`
+        : (resposta.mensagem || "Configuração salva."));
+      this.adicionarMensagem(
+        `Provedor de IA atualizado para "${provedor}".`,
+        "assistant"
+      );
+      // Recarrega modelos e status para refletir o novo provedor/modelo.
+      this.providerConfigLoaded = false;
+      await this.carregarConfiguracaoProvedor();
+      await this.carregarModelos(true);
+      await this.verificarStatus();
+    } catch (err) {
+      this.setProviderStatus(`Erro ao salvar: ${err.message || String(err)}`, true);
+    } finally {
+      if (this.saveProviderBtn) this.saveProviderBtn.disabled = false;
+      this.hideLoading();
     }
   }
 

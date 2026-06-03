@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import shutil
 from typing import Any, Dict, Generator, List
 
@@ -48,41 +49,20 @@ class RositaAgent:
         self.settings = settings
         self.prompt_sistema = prompt_sistema
         self.documentos_contexto = list(documentos_contexto or [])
-        
-        # Inicializar todos os clientes disponíveis
+
+        # Inicializar todos os clientes disponíveis conforme as credenciais.
         self.ollama_client: AIClient | None = None
         self.openrouter_client: AIClient | None = None
         self.gateway_client: AIClient | None = None
-        
-        # Tentar inicializar Ollama
-        try:
-            self.ollama_client = OllamaClient(settings)
-        except Exception:
-            pass
-        
-        # Tentar inicializar Open Router
-        try:
-            if settings.openrouter_api_key:
-                from rosita.core.ai_client import OpenRouterClient
-                self.openrouter_client = OpenRouterClient(settings)
-        except Exception:
-            pass
-        
-        # Tentar inicializar Gateway
-        try:
-            if settings.gateway_url:
-                from rosita.core.ai_client import GatewayClient
-                self.gateway_client = GatewayClient(settings)
-        except Exception:
-            pass
-        
-        # Se nenhum foi inicializado, vamos criar pelo menos o padrão
+        self._reinit_clients()
+
+        # Se nenhum foi inicializado, vamos exigir ao menos o padrão (Ollama).
         if self.ollama_client is None and self.openrouter_client is None and self.gateway_client is None:
             try:
                 self.ollama_client = OllamaClient(settings)
             except Exception as exc:
                 raise RuntimeError(f"Falha ao inicializar clientes de IA: {str(exc)}")
-        
+
         # Determinar cliente ativo
         self.active_provider = self._get_initial_provider()
         
@@ -94,35 +74,139 @@ class RositaAgent:
         self.download_status = "idle"
         self.download_percent = 0
 
+    def _reinit_clients(self) -> None:
+        """(Re)inicializa os clientes de IA conforme as credenciais atuais."""
+        from rosita.core.ai_client import GatewayClient, OpenRouterClient
+
+        # Ollama é sempre tentado (pode rodar local sem credencial).
+        try:
+            self.ollama_client = OllamaClient(self.settings)
+        except Exception:
+            self.ollama_client = None
+
+        # Open Router só existe se houver API key.
+        try:
+            self.openrouter_client = (
+                OpenRouterClient(self.settings) if self.settings.openrouter_api_key else None
+            )
+        except Exception:
+            self.openrouter_client = None
+
+        # Gateway custom só existe se houver URL.
+        try:
+            self.gateway_client = (
+                GatewayClient(self.settings) if self.settings.gateway_url else None
+            )
+        except Exception:
+            self.gateway_client = None
+
+    def _provider_client(self, provider: str) -> AIClient | None:
+        """Retorna o cliente correspondente a um provedor, se inicializado."""
+        return {
+            "ollama": self.ollama_client,
+            "openrouter": self.openrouter_client,
+            "gateway": self.gateway_client,
+        }.get(provider)
+
     def _get_initial_provider(self) -> str:
         """Determina qual provedor usar inicialmente."""
-        # Respeitar a preferência inicial se disponível
-        if self.settings.ai_provider == "gateway" and self.gateway_client:
-            return "gateway"
-        elif self.settings.ai_provider == "openrouter" and self.openrouter_client:
-            return "openrouter"
-        elif self.settings.ai_provider == "ollama" and self.ollama_client:
-            return "ollama"
-        
-        # Fallback para o primeiro disponível
-        if self.gateway_client:
-            return "gateway"
-        elif self.openrouter_client:
-            return "openrouter"
-        elif self.ollama_client:
-            return "ollama"
-        else:
-            return "ollama"
+        # Respeitar a preferência configurada, se o cliente existir.
+        preferido = self.settings.ai_provider
+        if preferido in ("ollama", "openrouter", "gateway") and self._provider_client(preferido):
+            return preferido
+
+        # Fallback para o primeiro disponível.
+        for provedor in ("gateway", "openrouter", "ollama"):
+            if self._provider_client(provedor):
+                return provedor
+        return "ollama"
 
     def _get_active_client(self) -> AIClient:
         """Retorna o cliente ativo atual."""
-        if self.active_provider == "gateway" and self.gateway_client:
-            return self.gateway_client
-        elif self.active_provider == "openrouter" and self.openrouter_client:
-            return self.openrouter_client
-        elif self.ollama_client:
+        cliente = self._provider_client(self.active_provider)
+        if cliente:
+            return cliente
+        if self.ollama_client:
             return self.ollama_client
         raise RuntimeError("Nenhum cliente de IA disponível.")
+
+    def reconfigurar(self, **mudancas: Any) -> None:
+        """Aplica novas credenciais/configuração em runtime e recria os clientes.
+
+        Campos aceitos: ai_provider, ollama_host, ollama_model,
+        openrouter_api_key, openrouter_model, gateway_url, gateway_model.
+        """
+        if self.is_busy:
+            raise RuntimeError("Não é possível alterar a configuração durante uma resposta em andamento.")
+        if self.is_downloading:
+            raise RuntimeError("Aguarde o fim do download atual antes de alterar a configuração.")
+
+        campos_validos = {
+            "ai_provider",
+            "ollama_host",
+            "ollama_model",
+            "openrouter_api_key",
+            "openrouter_model",
+            "gateway_url",
+            "gateway_model",
+            "gateway_api_key",
+        }
+        aplicar: Dict[str, str] = {
+            campo: valor
+            for campo, valor in mudancas.items()
+            if campo in campos_validos and valor is not None
+        }
+
+        # Normalizações.
+        if "ai_provider" in aplicar:
+            aplicar["ai_provider"] = str(aplicar["ai_provider"]).strip().lower()
+        if "ollama_host" in aplicar:
+            aplicar["ollama_host"] = str(aplicar["ollama_host"]).strip().rstrip("/")
+        if "gateway_url" in aplicar:
+            aplicar["gateway_url"] = str(aplicar["gateway_url"]).strip().rstrip("/")
+        for campo in (
+            "ollama_model",
+            "openrouter_api_key",
+            "openrouter_model",
+            "gateway_model",
+            "gateway_api_key",
+        ):
+            if campo in aplicar:
+                aplicar[campo] = str(aplicar[campo]).strip()
+
+        provedor_solicitado = aplicar.get("ai_provider")
+        if provedor_solicitado and provedor_solicitado not in ("ollama", "openrouter", "gateway"):
+            raise ValueError(f"Provedor desconhecido: {provedor_solicitado}")
+
+        # Recriar settings (frozen dataclass) e reinstanciar os clientes.
+        self.settings = dataclasses.replace(self.settings, **aplicar)
+        self._reinit_clients()
+
+        # Reavaliar o provedor ativo.
+        desejado = provedor_solicitado or self.active_provider
+        if not self._provider_client(desejado):
+            desejado = self._get_initial_provider()
+
+        if desejado != self.active_provider:
+            self.active_provider = desejado
+            self.current_model = self._resolver_modelo_inicial()
+        elif not self.current_model:
+            # Mesmo provedor: adota o modelo padrão se nenhum estiver ativo.
+            self.current_model = self._resolver_modelo_inicial()
+
+    def obter_config(self) -> Dict[str, Any]:
+        """Retorna a configuração atual (sem expor a API key em texto puro)."""
+        s = self.settings
+        return {
+            "ai_provider": self.active_provider,
+            "ollama_host": s.ollama_host,
+            "ollama_model": s.ollama_model,
+            "openrouter_model": s.openrouter_model,
+            "openrouter_api_key_set": bool(s.openrouter_api_key),
+            "gateway_url": s.gateway_url,
+            "gateway_model": s.gateway_model,
+            "gateway_api_key_set": bool(s.gateway_api_key),
+        }
 
     def _resolver_modelo_inicial(self) -> str:
         """Define modelo inicial conforme o provedor ativo."""

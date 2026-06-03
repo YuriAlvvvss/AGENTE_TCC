@@ -1,2 +1,10 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Shell scripts and Docker entrypoints must use LF, even on Windows checkouts.
+# Without this, CRLF endings break `sh` inside Linux containers.
+*.sh text eol=lf
+*.bash text eol=lf
+Dockerfile text eol=lf
+*.dockerfile text eol=lf
+compose-entrypoint.sh text eol=lf

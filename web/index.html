@@ -12,7 +12,7 @@
     .hidden { display: none !important; }
     .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border-width: 0; }
   </style>
-  <link rel="stylesheet" href="/styles/main.css?v=20260602c" />
+  <link rel="stylesheet" href="/styles/main.css?v=20260602e" />
 </head>
 <body>
   <!-- AUTH VIEW -->
@@ -236,6 +236,9 @@
           <button class="admin-tab" role="tab" aria-selected="false" data-tab="download" aria-controls="panel-download">
             Download
           </button>
+          <button class="admin-tab" role="tab" aria-selected="false" data-tab="provider" aria-controls="panel-provider">
+            Provedor de IA
+          </button>
         </div>
 
         <!-- Model Management Tab -->
@@ -338,6 +341,85 @@
             <div id="suggested-models" class="suggested-models"></div>
           </div>
         </div>
+
+        <!-- Provider Tab -->
+        <div id="panel-provider" class="admin-panel" role="tabpanel" aria-labelledby="panel-provider">
+          <div class="admin-card">
+            <h3 class="admin-card-title">Provedor de IA</h3>
+            <p class="admin-card-subtitle">
+              Escolha de onde a ROSITA obtém as respostas: Ollama (local), Open Router (nuvem)
+              ou um Gateway custom compatível com a API da OpenAI (vLLM, LM Studio, LocalAI...).
+              A configuração é aplicada na hora e fica salva para os próximos reinícios.
+            </p>
+
+            <div class="provider-field">
+              <label for="provider-select" class="form-label">Provedor ativo</label>
+              <select id="provider-select" class="form-input">
+                <option value="ollama">Ollama (local)</option>
+                <option value="openrouter">Open Router (nuvem)</option>
+                <option value="gateway">Gateway custom (OpenAI-compatible)</option>
+              </select>
+              <p id="provider-status-line" class="provider-status-line"></p>
+            </div>
+          </div>
+
+          <!-- Ollama -->
+          <div class="admin-card provider-group" data-provider-group="ollama">
+            <h3 class="admin-card-title">Ollama</h3>
+            <div class="provider-field">
+              <label for="ollama-host-input" class="form-label">Host do Ollama</label>
+              <input type="text" id="ollama-host-input" class="form-input"
+                placeholder="http://127.0.0.1:11434" autocomplete="off" />
+              <p class="provider-hint">Endereço do servidor Ollama. O modelo é escolhido na aba "Modelo Ativo".</p>
+            </div>
+          </div>
+
+          <!-- Open Router -->
+          <div class="admin-card provider-group" data-provider-group="openrouter">
+            <h3 class="admin-card-title">Open Router</h3>
+            <div class="provider-field">
+              <label for="openrouter-key-input" class="form-label">API Key</label>
+              <input type="password" id="openrouter-key-input" class="form-input"
+                placeholder="sk-or-..." autocomplete="off" />
+              <p id="openrouter-key-hint" class="provider-hint">A chave é gravada apenas no servidor e nunca é devolvida ao navegador.</p>
+            </div>
+            <div class="provider-field">
+              <label for="openrouter-model-input" class="form-label">Modelo</label>
+              <input type="text" id="openrouter-model-input" class="form-input"
+                placeholder="openai/gpt-4o-mini" autocomplete="off" />
+            </div>
+          </div>
+
+          <!-- Gateway -->
+          <div class="admin-card provider-group" data-provider-group="gateway">
+            <h3 class="admin-card-title">Gateway custom</h3>
+            <div class="provider-field">
+              <label for="gateway-url-input" class="form-label">URL base</label>
+              <input type="text" id="gateway-url-input" class="form-input"
+                placeholder="http://127.0.0.1:8000" autocomplete="off" />
+              <p class="provider-hint">Servidor compatível com OpenAI; a ROSITA chama <code>/v1/chat/completions</code>.</p>
+            </div>
+            <div class="provider-field">
+              <label for="gateway-model-input" class="form-label">Modelo</label>
+              <input type="text" id="gateway-model-input" class="form-input"
+                placeholder="Llama-3.1-8B-Instruct" autocomplete="off" />
+            </div>
+            <div class="provider-field">
+              <label for="gateway-key-input" class="form-label">API Key <span class="provider-optional">(opcional)</span></label>
+              <input type="password" id="gateway-key-input" class="form-input"
+                placeholder="Bearer token, se o gateway exigir" autocomplete="off" />
+              <p id="gateway-key-hint" class="provider-hint">Enviada como <code>Authorization: Bearer</code>. Deixe em branco se o gateway for aberto.</p>
+            </div>
+          </div>
+
+          <div class="admin-card">
+            <div class="provider-actions">
+              <button id="save-provider-btn" class="btn-success">Salvar e aplicar</button>
+              <button id="reload-provider-btn" class="btn-secondary">Recarregar</button>
+            </div>
+            <div id="provider-config-status" class="status-message"></div>
+          </div>
+        </div>
       </section>
 
       <!-- STATUS SECTION -->
@@ -428,7 +510,7 @@
       window.ROSITA_API_BASE_URL = loc.protocol + "//" + loc.hostname + ":" + apiPort;
     })();
   </script>
-  <script src="/scripts/api_client.js?v=20260602c" defer></script>
-  <script src="/scripts/main.js?v=20260602c" defer></script>
+  <script src="/scripts/api_client.js?v=20260602e" defer></script>
+  <script src="/scripts/main.js?v=20260602e" defer></script>
 </body>
 </html>
