@@ -12,7 +12,7 @@
     .hidden { display: none !important; }
     .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border-width: 0; }
   </style>
-  <link rel="stylesheet" href="/styles/main.css?v=20260607e" />
+  <link rel="stylesheet" href="/styles/main.css?v=20260607f" />
   <script>
     // Aplica o tema o quanto antes para evitar "flash" do tema claro.
     (function () {
@@ -148,6 +148,10 @@
             <p class="section-subtitle">Assistente inteligente para dúvidas da escola</p>
           </div>
           <div class="header-tools chat-header-actions">
+            <div id="status-pill" class="status-pill status--online">
+              <span class="status-dot"></span>
+              <span id="status">Sistema online</span>
+            </div>
             <div id="provider-pill" class="provider-pill">Provedor: --</div>
             <button id="clear-btn" class="btn-secondary" title="Limpar histórico">
               <svg viewBox="0 0 24 24" fill="currentColor">
@@ -158,13 +162,6 @@
           </div>
         </div>
 
-        <div class="chat-top-badges">
-          <div id="status-pill" class="status-pill status--online">
-            <span class="status-dot"></span>
-            <span id="status">Sistema online</span>
-          </div>
-        </div>
-
         <div class="chat-main-grid">
           <div class="chat-pane">
             <div id="chat-container" class="chat-container" role="log" aria-live="polite"></div>
@@ -172,12 +169,6 @@
               <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 16l-6-6h12z"/></svg>
             </button>
           </div>
-          <aside class="side-summary-card">
-            <h3>Status Admin</h3>
-            <p><strong>Provedor Ativo:</strong> <span id="summary-provider">--</span></p>
-            <p><strong>Modelo:</strong> <span id="summary-model">--</span></p>
-            <p><strong>Último Acesso:</strong> <span id="summary-last-update">--</span></p>
-          </aside>
         </div>
 
         <div id="quick-actions" class="quick-actions">
@@ -518,9 +509,9 @@
       window.ROSITA_API_BASE_URL = loc.protocol + "//" + loc.hostname + ":" + apiPort;
     })();
   </script>
-  <script src="/scripts/vendor/marked.min.js?v=20260607e" defer></script>
-  <script src="/scripts/vendor/purify.min.js?v=20260607e" defer></script>
-  <script src="/scripts/api_client.js?v=20260607e" defer></script>
-  <script src="/scripts/main.js?v=20260607e" defer></script>
+  <script src="/scripts/vendor/marked.min.js?v=20260607f" defer></script>
+  <script src="/scripts/vendor/purify.min.js?v=20260607f" defer></script>
+  <script src="/scripts/api_client.js?v=20260607f" defer></script>
+  <script src="/scripts/main.js?v=20260607f" defer></script>
 </body>
 </html>

@@ -20,7 +20,11 @@
       "Bash(python3 -m pytest -q)",
       "Bash(python3 -c \"import ast; [ast.parse\\(open\\(f\\).read\\(\\)\\) for f in ['backend/app.py','backend/src/rosita/main.py','backend/src/rosita/api/routes.py']]; print\\('Python OK'\\)\")",
       "Bash(python3 -c \"import sys,logging,tempfile,os; logging.basicConfig\\(level=logging.ERROR\\); sys.path.insert\\(0,'src'\\); os.environ['ROSITA_HISTORY_DB']=tempfile.mktemp\\(suffix='.sqlite3'\\); from rosita.app_factory import create_app; create_app\\(\\); print\\('BOOT OK'\\)\")",
-      "Bash(docker compose *)"
+      "Bash(docker compose *)",
+      "Read(//private/tmp/**)",
+      "Bash(rm -f rosita_cookies.txt)",
+      "Bash(curl -s -c rosita_cookies.txt -X POST http://127.0.0.1:37643/api/auth/login -H \"Content-Type: application/json\" -d '{\"username\":\"admin\",\"password\":\"admin123\"}' -o /dev/null -w \"login HTTP %{http_code}\\\\n\")",
+      "Bash(curl -s -N -b rosita_cookies.txt -X POST http://127.0.0.1:37643/api/chat -H \"Content-Type: application/json\" -d '{\"mensagem\":\"Responda apenas com: funcionando\"}' --max-time 40)"
     ]
   }
 }

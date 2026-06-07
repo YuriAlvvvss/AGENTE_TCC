@@ -209,6 +209,23 @@ class RositaApp {
     if (!this.authFeedbackEl) return;
     this.authFeedbackEl.textContent = message || "";
     this.authFeedbackEl.classList.toggle("is-error", Boolean(isError));
+
+    // Em caso de erro, balança o card brevemente como feedback visual.
+    if (isError) {
+      const card = this.authView?.querySelector(".auth-card");
+      if (card) {
+        card.classList.remove("is-shaking");
+        void card.offsetWidth; // força reflow para reiniciar a animação
+        card.classList.add("is-shaking");
+      }
+    }
+  }
+
+  /** Mostra/esconde os chips de ação rápida conforme a conversa já começou. */
+  setConversaAtiva(ativa) {
+    document
+      .getElementById("chat-section")
+      ?.classList.toggle("has-conversation", Boolean(ativa));
   }
 
   applySession(payload = {}) {
@@ -334,10 +351,12 @@ class RositaApp {
     }
 
     if (!mensagens.length) {
+      this.setConversaAtiva(false);
       this.appendWelcomeMessage();
       return;
     }
 
+    this.setConversaAtiva(true);
     this.chatContainer.innerHTML = "";
     this.grudadoNoFim = true;
     for (const msg of mensagens) {
@@ -764,6 +783,10 @@ class RositaApp {
     body.appendChild(meta);
     wrap.appendChild(body);
     this.chatContainer.appendChild(wrap);
+    // Assim que o usuário envia algo, escondemos os chips de boas-vindas.
+    if (tipo === "user") {
+      this.setConversaAtiva(true);
+    }
     // Mensagem do próprio usuário sempre rola; demais só se já estava no fim.
     if (tipo === "user" || this.grudadoNoFim) {
       this.scrollParaFim();
@@ -1418,6 +1441,7 @@ class RositaApp {
       this.chatContainer.innerHTML = "";
       this.grudadoNoFim = true;
       this.atualizarBotaoScroll();
+      this.setConversaAtiva(false);
       this.appendWelcomeMessage();
     } catch (err) {
       this.notificar(`Erro ao limpar histórico: ${err.message || String(err)}`, "error");
