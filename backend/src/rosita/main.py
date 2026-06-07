@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import sys
 from pathlib import Path
 
@@ -10,6 +11,8 @@ from flask_cors import CORS
 
 from rosita.api.routes.credentials import credentials_bp
 from rosita.settings import Settings
+
+logger = logging.getLogger("rosita.main")
 
 
 def criar_app() -> Flask:
@@ -60,9 +63,9 @@ def main() -> None:
     settings = Settings()
     app = criar_app()
     
-    print(f"ROSITA iniciando...")
-    print(f"Provider: {settings.ai_provider}")
-    print(f"API rodando em http://0.0.0.0:{settings.api_port}")
+    logger.info("ROSITA iniciando...")
+    logger.info("Provider: %s", settings.ai_provider)
+    logger.info("API rodando em http://0.0.0.0:%s", settings.api_port)
     
     app.run(
         host="0.0.0.0",

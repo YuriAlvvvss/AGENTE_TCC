@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import json
+import logging
 from functools import wraps
 from pathlib import Path
 from typing import Any, Callable, Generator
 
 from flask import Blueprint, Response, jsonify, request, session
+from werkzeug.security import check_password_hash, generate_password_hash
 
 from rosita.bootstrap import montar_contexto_agente
 from rosita.core.agent import RositaAgent
@@ -15,7 +17,14 @@ from rosita.settings import Settings
 from rosita.utils.env_manager import update_env_file
 from rosita.utils.file_loader import garantir_documentos_padrao
 from rosita.utils.system_monitor import get_system_snapshot
-from rosita.utils.validators import validar_pergunta
+from rosita.utils.validators import validar_nome_modelo, validar_pergunta
+
+
+logger = logging.getLogger("rosita.api")
+
+# Hash descartável usado para igualar o tempo de resposta quando o usuário não
+# existe, evitando enumeração de usuários por análise de tempo (timing attack).
+_DUMMY_PASSWORD_HASH = generate_password_hash("rosita-dummy-password")
 
 
 def _sse_chunk_payload(payload: Any) -> str:
@@ -32,13 +41,13 @@ def _available_users(settings: Settings) -> dict[str, dict[str, str]]:
     return {
         _normalize_username(admin_username): {
             "username": admin_username,
-            "password": settings.admin_password,
+            "password_hash": settings.admin_password_hash,
             "role": "admin",
             "display_name": "Administrador",
         },
         _normalize_username(user_username): {
             "username": user_username,
-            "password": settings.user_password,
+            "password_hash": settings.user_password_hash,
             "role": "user",
             "display_name": "Usuário",
         },
@@ -133,15 +142,31 @@ def _get_existing_data_file(settings: Settings, filename: str) -> Path:
     return _resolve_data_file(settings.data_dir, filename)
 
 
-def create_api_blueprint(agent: RositaAgent, settings: Settings) -> Blueprint:
+def create_api_blueprint(
+    agent: RositaAgent,
+    settings: Settings,
+    limiter: Any = None,
+    history_store: Any = None,
+) -> Blueprint:
     """Cria blueprint da API usando instância já inicializada do agente."""
     api_bp = Blueprint("api", __name__, url_prefix="/api")
+
+    def _usuario_atual() -> str:
+        """Identifica o usuário logado para indexar o histórico."""
+        return str(session.get("username") or "").strip()
+
+    def _limit(regra: str) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+        """Aplica o limite de taxa quando há um limiter disponível."""
+        if limiter is None:
+            return lambda func: func
+        return limiter.limit(regra)
 
     @api_bp.route("/auth/session", methods=["GET"])
     def auth_session() -> Any:
         return jsonify(_session_payload())
 
     @api_bp.route("/auth/login", methods=["POST"])
+    @_limit("10 per minute")
     def login() -> Any:
         dados = request.get_json(silent=True)
         if dados is None or not isinstance(dados, dict):
@@ -153,7 +178,12 @@ def create_api_blueprint(agent: RositaAgent, settings: Settings) -> Blueprint:
 
         if not username or not password:
             return jsonify({"erro": "Informe usuário e senha."}), 400
-        if user is None or password != user["password"]:
+
+        # Compara o hash mesmo quando o usuário não existe, mantendo o tempo de
+        # resposta constante (proteção contra timing attack / enumeração).
+        senha_hash = user["password_hash"] if user else _DUMMY_PASSWORD_HASH
+        senha_valida = check_password_hash(senha_hash, password)
+        if user is None or not senha_valida:
             session.clear()
             return jsonify({"erro": "Usuário ou senha inválidos.", **_session_payload()}), 401
 
@@ -178,6 +208,7 @@ def create_api_blueprint(agent: RositaAgent, settings: Settings) -> Blueprint:
         )
 
     @api_bp.route("/chat", methods=["POST"])
+    @_limit("20 per minute")
     @_require_roles("admin", "user")
     def chat() -> Any:
         dados = request.get_json(silent=True)
@@ -190,12 +221,26 @@ def create_api_blueprint(agent: RositaAgent, settings: Settings) -> Blueprint:
         if not validar_pergunta(mensagem, settings.max_input_chars):
             return jsonify({"erro": "Mensagem inválida."}), 400
 
+        # Captura usuário e histórico fora do gerador (contexto de requisição).
+        username = _usuario_atual()
+        pergunta = str(mensagem).strip()
+        historico_previo = (
+            history_store.get(username, limit=settings.max_history) if history_store else []
+        )
+
         def gerar_resposta() -> Generator[str, None, None]:
+            resposta = ""
             try:
-                for chunk in agent.processar_pergunta(str(mensagem)):
+                for chunk in agent.processar_pergunta(pergunta, historico_previo):
+                    resposta += chunk
                     yield _sse_chunk_payload(chunk)
+                # Persiste pergunta e resposta apenas em caso de sucesso.
+                if history_store and username:
+                    history_store.append(username, "user", pergunta)
+                    history_store.append(username, "assistant", resposta)
                 yield "data: [FIM]\n\n"
             except Exception as exc:
+                logger.exception("Erro ao gerar resposta do chat")
                 yield f"data: [ERRO] {exc}\n\n"
 
         return Response(
@@ -203,6 +248,22 @@ def create_api_blueprint(agent: RositaAgent, settings: Settings) -> Blueprint:
             mimetype="text/event-stream",
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
+
+    @api_bp.route("/health", methods=["GET"])
+    def health() -> Any:
+        """Healthcheck que verifica a conectividade real com o provedor de IA.
+
+        Retorna 200 quando o provedor responde e 503 quando está indisponível,
+        permitindo que orquestradores (Docker/Coolify) detectem degradação.
+        """
+        ia = agent.verificar_provedor()
+        payload = {
+            "status": "ok" if ia["ok"] else "degraded",
+            "agente": "ROSITA",
+            "modelo_atual": agent.obter_modelo_atual(),
+            "ia": ia,
+        }
+        return jsonify(payload), (200 if ia["ok"] else 503)
 
     @api_bp.route("/status", methods=["GET"])
     def status() -> Any:
@@ -254,6 +315,8 @@ def create_api_blueprint(agent: RositaAgent, settings: Settings) -> Blueprint:
         model = dados.get("model")
         if not isinstance(model, str) or not model.strip():
             return jsonify({"erro": "Campo 'model' é obrigatório."}), 400
+        if not validar_nome_modelo(model):
+            return jsonify({"erro": "Nome de modelo inválido."}), 400
 
         try:
             current = agent.trocar_modelo(model)
@@ -294,6 +357,8 @@ def create_api_blueprint(agent: RositaAgent, settings: Settings) -> Blueprint:
         model = dados.get("model")
         if not isinstance(model, str) or not model.strip():
             return jsonify({"erro": "Campo 'model' é obrigatório."}), 400
+        if not validar_nome_modelo(model):
+            return jsonify({"erro": "Nome de modelo inválido."}), 400
 
         try:
             removed_model = agent.excluir_modelo(model)
@@ -321,6 +386,8 @@ def create_api_blueprint(agent: RositaAgent, settings: Settings) -> Blueprint:
         model = dados.get("model")
         if not isinstance(model, str) or not model.strip():
             return jsonify({"erro": "Campo 'model' é obrigatório."}), 400
+        if not validar_nome_modelo(model):
+            return jsonify({"erro": "Nome de modelo inválido."}), 400
 
         def gerar_download() -> Generator[str, None, None]:
             try:
@@ -373,6 +440,15 @@ def create_api_blueprint(agent: RositaAgent, settings: Settings) -> Blueprint:
         if len(content) > 300000:
             return jsonify({"erro": "Arquivo excede o limite permitido para edição."}), 400
 
+        # Backup do conteúdo anterior antes de sobrescrever (rede de segurança).
+        if path.exists():
+            try:
+                backup_path = path.with_suffix(path.suffix + ".bak")
+                backup_path.write_text(path.read_text(encoding="utf-8"), encoding="utf-8")
+            except OSError:
+                # Falha no backup não deve impedir o salvamento em si.
+                pass
+
         path.write_text(content, encoding="utf-8")
         prompt_sistema, documentos_carregados = montar_contexto_agente(settings)
         agent.atualizar_contexto(prompt_sistema, documentos_carregados)
@@ -388,13 +464,15 @@ def create_api_blueprint(agent: RositaAgent, settings: Settings) -> Blueprint:
     @api_bp.route("/limpar", methods=["POST"])
     @_require_roles("admin", "user")
     def limpar() -> Any:
-        agent.limpar_historico()
+        if history_store:
+            history_store.clear(_usuario_atual())
         return jsonify({"mensagem": "Histórico limpo com sucesso."})
 
     @api_bp.route("/historico", methods=["GET"])
     @_require_roles("admin", "user")
     def historico() -> Any:
-        return jsonify({"historico": agent.obter_historico()})
+        registros = history_store.get(_usuario_atual()) if history_store else []
+        return jsonify({"historico": registros})
 
     @api_bp.route("/provedores", methods=["GET"])
     @_require_roles("admin")

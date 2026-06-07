@@ -17,11 +17,41 @@ import requests
 from rosita.settings import Settings
 
 
+def _tipos_erro_rede() -> tuple[type, ...]:
+    """Reúne as classes de exceção de rede das bibliotecas HTTP em uso.
+
+    Detectar por tipo é mais confiável do que procurar palavras na mensagem,
+    que variam entre versões e idiomas. As exceções do ``ollama`` propagam via
+    ``httpx``; as chamadas REST usam ``requests``.
+    """
+    tipos: list[type] = [
+        socket.gaierror,
+        socket.timeout,
+        ConnectionError,
+        TimeoutError,
+        OSError,
+        requests.exceptions.ConnectionError,
+        requests.exceptions.Timeout,
+    ]
+    try:
+        import httpx
+
+        # NetworkError e TimeoutException são as bases de conexão/timeout do httpx.
+        tipos.extend([httpx.NetworkError, httpx.TimeoutException])
+    except Exception:
+        pass
+    return tuple(tipos)
+
+
+_NETWORK_ERROR_TYPES = _tipos_erro_rede()
+
+
 def _is_network_error(exc: Exception) -> bool:
     """Identifica se é um erro de rede (DNS, conexão, timeout, etc)."""
-    if isinstance(exc, (socket.gaierror, socket.timeout, ConnectionError, TimeoutError, OSError)):
+    if isinstance(exc, _NETWORK_ERROR_TYPES):
         return True
-    
+
+    # Fallback defensivo por mensagem, para casos não cobertos pelos tipos acima.
     mensagem = str(exc).lower()
     sinais_rede = (
         "getaddrinfo failed",
@@ -130,28 +160,8 @@ class OllamaClient(AIClient):
 
     def _is_connection_error(self, exc: Exception) -> bool:
         """Identifica falhas transitórias de conexão com o servidor Ollama."""
-        if isinstance(exc, (ConnectionError, OSError, TimeoutError, socket.gaierror)):
-            return True
-
-        mensagem = str(exc).lower()
-        sinais = (
-            "getaddrinfo failed",
-            "connection refused",
-            "actively refused",
-            "failed to connect",
-            "max retries exceeded",
-            "timed out",
-            "timeout",
-            "connection error",
-            "connection aborted",
-            "connection reset",
-            "broken pipe",
-            "offline",
-            "refused",
-            "dns",
-            "name resolution",
-        )
-        return any(sinal in mensagem for sinal in sinais)
+        # Reutiliza a detecção tipada (com fallback defensivo) compartilhada.
+        return _is_network_error(exc)
 
     def _formatar_erro_ollama(self, exc: Exception) -> str:
         """Converte erros de conexão do Ollama em mensagens mais claras."""

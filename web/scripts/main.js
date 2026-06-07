@@ -11,6 +11,7 @@ class RositaApp {
     this.userAvatarEl = document.getElementById("user-avatar");
     this.accessHintEl = document.getElementById("access-hint");
     this.logoutBtn = document.getElementById("logout-btn");
+    this.themeToggleBtn = document.getElementById("theme-toggle-btn");
     this.chatContainer = document.getElementById("chat-container");
     this.modelSelectorWrap = document.querySelector(".model-selector");
     this.userInput = document.getElementById("user-input");
@@ -49,7 +50,9 @@ class RositaApp {
     this.downloadProgressBar = document.getElementById("download-progress-bar");
     this.loadingOverlay = document.getElementById("loading-overlay");
     this.loadingText = document.getElementById("loading-text");
-    this.tokenStatsEl = document.getElementById("token-stats");
+    this.toastContainer = document.getElementById("toast-container");
+    this.scrollBottomBtn = document.getElementById("scroll-bottom-btn");
+    this.grudadoNoFim = true;
     this.configFileSelect = document.getElementById("config-file-select");
     this.reloadConfigBtn = document.getElementById("reload-config-btn");
     this.saveConfigBtn = document.getElementById("save-config-btn");
@@ -83,14 +86,25 @@ class RositaApp {
     this.isDownloadingModel = false;
     this.hasInstalledModels = false;
     this.hasActiveModel = false;
-    this.currentTokens = [];
     this.hasShownEmptyModelsTip = false;
     this.modelRefreshTimer = null;
     this.selectedConfigFile = "";
     this.configFilesLoaded = false;
     this.providerConfigLoaded = false;
     this.statusTimer = null;
+    this.currentAbort = null;
 
+    // Ícones do botão de envio (avião) e do modo "parar" (quadrado).
+    this.sendIconHtml = this.sendBtn ? this.sendBtn.innerHTML : "";
+    this.stopIconHtml =
+      '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
+
+    // Quebras de linha simples viram <br> (mais natural num chat).
+    if (window.marked?.setOptions) {
+      window.marked.setOptions({ breaks: true });
+    }
+
+    this.sincronizarBotaoTema();
     this.bindEvents();
     this.updateControls();
     this.atualizarVisibilidadeProvedor();
@@ -103,7 +117,14 @@ class RositaApp {
       this.login();
     });
     this.logoutBtn?.addEventListener("click", () => this.logout());
-    this.sendBtn?.addEventListener("click", () => this.enviarMensagem());
+    this.themeToggleBtn?.addEventListener("click", () => this.alternarTema());
+    this.sendBtn?.addEventListener("click", () => {
+      if (this.isAwaitingResponse) {
+        this.abortarResposta();
+      } else {
+        this.enviarMensagem();
+      }
+    });
     this.clearBtn?.addEventListener("click", () => this.limparChat());
     this.reloadModelsBtn?.addEventListener("click", () => this.carregarModelos());
     this.unloadModelBtn?.addEventListener("click", () => this.descarregarModeloAtual());
@@ -128,6 +149,7 @@ class RositaApp {
       if (!button || !this.userInput) return;
       this.userInput.value = button.textContent.trim();
       this.atualizarContadorCaracteres();
+      this.ajustarAlturaInput();
       this.userInput.focus();
     });
     this.configFileSelect?.addEventListener("change", () => this.carregarArquivoConfiguracao());
@@ -138,11 +160,22 @@ class RositaApp {
     this.saveProviderBtn?.addEventListener("click", () => this.salvarConfiguracaoProvedor());
     this.reloadProviderBtn?.addEventListener("click", () => this.carregarConfiguracaoProvedor());
 
-    this.userInput?.addEventListener("keypress", (event) => {
-      if (event.key === "Enter" && !this.isAwaitingResponse && this.hasActiveModel && this.session.authenticated) {
-        this.enviarMensagem();
+    this.userInput?.addEventListener("keydown", (event) => {
+      // Enter envia; Shift+Enter insere quebra de linha.
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        if (!this.isAwaitingResponse && this.hasActiveModel && this.session.authenticated) {
+          this.enviarMensagem();
+        }
       }
     });
+    this.userInput?.addEventListener("input", () => this.ajustarAlturaInput());
+
+    this.chatContainer?.addEventListener("scroll", () => {
+      this.grudadoNoFim = this.estaNoFim();
+      this.atualizarBotaoScroll();
+    });
+    this.scrollBottomBtn?.addEventListener("click", () => this.scrollParaFim());
 
     this.downloadInput?.addEventListener("keypress", (event) => {
       if (event.key === "Enter" && !this.isDownloadingModel && this.isAdmin()) {
@@ -254,8 +287,8 @@ class RositaApp {
       const payload = await window.rositaApi.login(username, password);
       this.loginForm?.reset();
       this.chatContainer.innerHTML = "";
-      this.currentTokens = [];
-      this.atualizarTokenStats();
+      this.grudadoNoFim = true;
+      this.atualizarBotaoScroll();
       this.setAuthFeedback("Login realizado com sucesso.");
       this.applySession(payload);
       await this.onAuthenticated();
@@ -273,8 +306,8 @@ class RositaApp {
     } catch (_) {
     } finally {
       this.chatContainer.innerHTML = "";
-      this.currentTokens = [];
-      this.atualizarTokenStats();
+      this.grudadoNoFim = true;
+      this.atualizarBotaoScroll();
       this.showLogin("Sessão encerrada com sucesso.");
       this.hideLoading();
     }
@@ -287,11 +320,60 @@ class RositaApp {
       await this.carregarModelos();
       await this.carregarArquivosConfiguracao(true);
     }
-    this.appendWelcomeMessage();
+    await this.carregarHistorico();
+  }
+
+  /** Carrega e renderiza o histórico persistido do usuário; senão, dá as boas-vindas. */
+  async carregarHistorico() {
+    let mensagens = [];
+    try {
+      const payload = await window.rositaApi.obterHistorico();
+      mensagens = Array.isArray(payload?.historico) ? payload.historico : [];
+    } catch (_) {
+      // Falha ao carregar histórico não deve impedir o uso do chat.
+    }
+
+    if (!mensagens.length) {
+      this.appendWelcomeMessage();
+      return;
+    }
+
+    this.chatContainer.innerHTML = "";
+    this.grudadoNoFim = true;
+    for (const msg of mensagens) {
+      const tipo = msg.role === "user" ? "user" : "assistant";
+      if (tipo === "assistant") {
+        const el = this.adicionarMensagem("", "assistant");
+        this.renderMarkdown(el, msg.content || "");
+      } else {
+        this.adicionarMensagem(msg.content || "", "user");
+      }
+    }
+    this.scrollParaFim();
   }
 
   appendWelcomeMessage() {
     if (!this.chatContainer || this.chatContainer.children.length > 0) return;
+
+    // Admin sem modelo ativo: oferece um atalho direto para resolver isso.
+    if (this.isAdmin() && !this.hasActiveModel) {
+      const content = this.adicionarMensagem(
+        "Login de administrador ativo. Nenhum modelo está ativo no momento — ative um para liberar o chat da ROSITA.",
+        "assistant"
+      );
+      const semModelos = !this.hasInstalledModels;
+      const cta = document.createElement("button");
+      cta.type = "button";
+      cta.className = "btn-primary welcome-cta";
+      cta.textContent = semModelos ? "Baixar um modelo para começar" : "Ativar um modelo";
+      cta.addEventListener("click", () => {
+        this.switchSection("admin");
+        this.switchAdminTab(semModelos ? "download" : "model-mgmt");
+      });
+      content.appendChild(cta);
+      return;
+    }
+
     const message = this.isAdmin()
       ? "Login de administrador ativo. Você pode conversar com a ROSITA e gerenciar as configurações do sistema."
       : "Login de usuário ativo. Este perfil possui acesso somente ao bate-papo com a ROSITA.";
@@ -310,10 +392,29 @@ class RositaApp {
         ? "Faça login para usar o chat"
         : this.hasActiveModel
           ? "Digite sua pergunta..."
-          : "Aguarde um modelo ativo para conversar";
+          : admin
+            ? "Ative um modelo em Administração para conversar"
+            : "⏳ Preparando a ROSITA... o chat abre automaticamente";
     }
     if (this.sendBtn) {
-      this.sendBtn.disabled = chatDisabled;
+      if (this.isAwaitingResponse) {
+        // Durante a resposta o botão vira "parar" e fica clicável para abortar.
+        this.sendBtn.disabled = false;
+        this.sendBtn.classList.add("btn-send--stop");
+        this.sendBtn.title = "Parar resposta";
+        this.sendBtn.setAttribute("aria-label", "Parar resposta");
+        if (this.sendBtn.innerHTML !== this.stopIconHtml) {
+          this.sendBtn.innerHTML = this.stopIconHtml;
+        }
+      } else {
+        this.sendBtn.disabled = chatDisabled;
+        this.sendBtn.classList.remove("btn-send--stop");
+        this.sendBtn.title = "Enviar mensagem (Enter)";
+        this.sendBtn.setAttribute("aria-label", "Enviar mensagem");
+        if (this.sendIconHtml && this.sendBtn.innerHTML !== this.sendIconHtml) {
+          this.sendBtn.innerHTML = this.sendIconHtml;
+        }
+      }
     }
     if (this.modelSelectorWrap) {
       this.modelSelectorWrap.classList.toggle("hidden", !admin);
@@ -400,6 +501,83 @@ class RositaApp {
     this.charCountEl.textContent = `${len}/${max}`;
   }
 
+  /** Ajusta a altura do campo de texto ao conteúdo (auto-resize, com limite). */
+  ajustarAlturaInput() {
+    const el = this.userInput;
+    if (!el || el.tagName !== "TEXTAREA") return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
+  }
+
+  /** Copia um texto para a área de transferência, com feedback no botão. */
+  async copiarTexto(texto, botao) {
+    if (!texto) return;
+    try {
+      await navigator.clipboard.writeText(texto);
+    } catch (e) {
+      // Fallback para navegadores/contextos sem Clipboard API (ex.: http).
+      const ta = document.createElement("textarea");
+      ta.value = texto;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand("copy");
+      } catch (_) {}
+      ta.remove();
+    }
+    if (botao) {
+      const original = botao.textContent;
+      botao.textContent = "Copiado!";
+      botao.classList.add("is-copied");
+      window.setTimeout(() => {
+        botao.textContent = original;
+        botao.classList.remove("is-copied");
+      }, 1500);
+    }
+  }
+
+  /** Alterna entre tema claro e escuro e persiste a escolha. */
+  alternarTema() {
+    const escuroAgora = document.documentElement.classList.toggle("theme-dark");
+    try {
+      localStorage.setItem("rosita-theme", escuroAgora ? "dark" : "light");
+    } catch (e) {}
+    this.sincronizarBotaoTema();
+  }
+
+  /** Atualiza o rótulo/título do botão conforme o tema atual. */
+  sincronizarBotaoTema() {
+    if (!this.themeToggleBtn) return;
+    const escuro = document.documentElement.classList.contains("theme-dark");
+    const rotulo = escuro ? "Mudar para tema claro" : "Mudar para tema escuro";
+    this.themeToggleBtn.title = rotulo;
+    this.themeToggleBtn.setAttribute("aria-label", rotulo);
+  }
+
+  /** True se o chat está rolado até (perto do) fim. */
+  estaNoFim() {
+    const el = this.chatContainer;
+    if (!el) return true;
+    return el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+  }
+
+  /** Rola o chat até o fim e esconde o botão de "novas mensagens". */
+  scrollParaFim() {
+    const el = this.chatContainer;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+    this.grudadoNoFim = true;
+    this.atualizarBotaoScroll();
+  }
+
+  /** Mostra o botão flutuante apenas quando o usuário não está no fim. */
+  atualizarBotaoScroll() {
+    if (!this.scrollBottomBtn) return;
+    this.scrollBottomBtn.classList.toggle("hidden", this.grudadoNoFim);
+  }
+
   startStatusPolling() {
     if (this.statusTimer) return;
     this.statusTimer = window.setInterval(() => this.verificarStatus(), 5000);
@@ -456,6 +634,14 @@ class RositaApp {
   async verificarStatus() {
     try {
       const payload = await window.rositaApi.obterStatus();
+
+      // Sessão expirou no servidor enquanto a interface ainda estava aberta:
+      // volta para a tela de login em vez de deixar o app num estado quebrado.
+      if (this.session.authenticated && !payload.authenticated) {
+        this.showLogin("Sua sessão expirou. Faça login novamente.");
+        return;
+      }
+
       this.hasActiveModel = Boolean(payload.modelo_atual);
 
       const modelStatus = document.getElementById("model-status");
@@ -521,6 +707,10 @@ class RositaApp {
         }
         this.atualizarSistema({});
       }
+
+      // Reavalia os controles a cada ciclo: assim o chat é liberado
+      // automaticamente quando um modelo fica ativo (e bloqueado se sair).
+      this.updateControls();
     } catch {
       if (this.statusEl) {
         this.statusEl.textContent = "Offline";
@@ -551,29 +741,89 @@ class RositaApp {
 
     const meta = document.createElement("div");
     meta.className = "message-meta";
-    meta.textContent = new Date().toLocaleTimeString("pt-BR", {
+    const hora = document.createElement("span");
+    hora.textContent = new Date().toLocaleTimeString("pt-BR", {
       hour: "2-digit",
       minute: "2-digit",
     });
+    meta.appendChild(hora);
+
+    // Botão de copiar apenas nas respostas da assistente.
+    if (tipo === "assistant") {
+      const copiar = document.createElement("button");
+      copiar.type = "button";
+      copiar.className = "copy-btn";
+      copiar.title = "Copiar resposta";
+      copiar.setAttribute("aria-label", "Copiar resposta");
+      copiar.textContent = "Copiar";
+      copiar.addEventListener("click", () => this.copiarTexto(content.textContent || "", copiar));
+      meta.appendChild(copiar);
+    }
 
     body.appendChild(content);
     body.appendChild(meta);
     wrap.appendChild(body);
     this.chatContainer.appendChild(wrap);
-    this.chatContainer.scrollTop = this.chatContainer.scrollHeight;
+    // Mensagem do próprio usuário sempre rola; demais só se já estava no fim.
+    if (tipo === "user" || this.grudadoNoFim) {
+      this.scrollParaFim();
+    } else {
+      this.atualizarBotaoScroll();
+    }
     return content;
   }
 
-  tokenizeChunk(chunk) {
-    return chunk.match(/\S+/g) || [];
+  /**
+   * Renderiza texto em Markdown dentro de um elemento, sanitizando o HTML.
+   * Faz fallback para texto puro se as bibliotecas não estiverem carregadas.
+   */
+  renderMarkdown(el, texto) {
+    if (!el) return;
+    if (window.marked?.parse && window.DOMPurify?.sanitize) {
+      el.innerHTML = window.DOMPurify.sanitize(window.marked.parse(texto || ""));
+      el.classList.add("markdown-body");
+    } else {
+      el.textContent = texto || "";
+    }
   }
 
-  atualizarTokenStats() {
-    if (!this.tokenStatsEl) return;
-    const total = this.currentTokens.length;
-    const ultimos = this.currentTokens.slice(-12).join(" | ");
-    if (this.tokenStatsEl) {
-      this.tokenStatsEl.textContent = `Tokens: ${total}${ultimos ? ` | ${ultimos}` : ""}`;
+  /**
+   * Exibe uma notificação flutuante (toast) para mensagens de sistema/admin,
+   * mantendo-as separadas da conversa do chat.
+   * @param {string} mensagem
+   * @param {"info"|"success"|"error"} tipo
+   * @param {number} duracao  Tempo até sumir automaticamente (ms). 0 = fixo.
+   */
+  notificar(mensagem, tipo = "info", duracao = 4500) {
+    if (!this.toastContainer || !mensagem) return;
+
+    const toast = document.createElement("div");
+    toast.className = `toast toast--${tipo}`;
+    toast.setAttribute("role", tipo === "error" ? "alert" : "status");
+
+    const texto = document.createElement("div");
+    texto.className = "toast-message";
+    texto.textContent = mensagem;
+
+    const fechar = document.createElement("button");
+    fechar.type = "button";
+    fechar.className = "toast-close";
+    fechar.setAttribute("aria-label", "Fechar notificação");
+    fechar.textContent = "×";
+
+    const remover = () => {
+      if (!toast.isConnected) return;
+      toast.classList.add("is-leaving");
+      toast.addEventListener("animationend", () => toast.remove(), { once: true });
+    };
+
+    fechar.addEventListener("click", remover);
+    toast.appendChild(texto);
+    toast.appendChild(fechar);
+    this.toastContainer.appendChild(toast);
+
+    if (duracao > 0) {
+      window.setTimeout(remover, duracao);
     }
   }
 
@@ -732,6 +982,16 @@ class RositaApp {
   async salvarArquivoConfiguracao() {
     if (!this.isAdmin() || !this.selectedConfigFile) return;
 
+    if (
+      !window.confirm(
+        `Salvar e sobrescrever "${this.selectedConfigFile}"?\n\n` +
+          "Isto altera o conhecimento usado pela ROSITA nas respostas. " +
+          "Uma cópia de segurança (.bak) do conteúdo anterior será criada no servidor."
+      )
+    ) {
+      return;
+    }
+
     try {
       this.setConfigStatus(`Salvando ${this.selectedConfigFile}...`);
       await window.rositaApi.salvarArquivoConfiguracao(this.selectedConfigFile, this.configFileEditor.value || "");
@@ -866,10 +1126,7 @@ class RositaApp {
       this.setProviderStatus(resposta.aviso
         ? `${resposta.mensagem} Aviso: ${resposta.aviso}`
         : (resposta.mensagem || "Configuração salva."));
-      this.adicionarMensagem(
-        `Provedor de IA atualizado para "${provedor}".`,
-        "assistant"
-      );
+      this.notificar(`Provedor de IA atualizado para "${provedor}".`, "success");
       // Recarrega modelos e status para refletir o novo provedor/modelo.
       this.providerConfigLoaded = false;
       await this.carregarConfiguracaoProvedor();
@@ -940,9 +1197,10 @@ class RositaApp {
       }
 
       if (!models.length && !this.hasShownEmptyModelsTip) {
-        this.adicionarMensagem(
-          "Nenhum modelo está instalado ainda. Escolha uma sugestão acima ou informe um nome de modelo para começar.",
-          "assistant"
+        this.notificar(
+          "Nenhum modelo está instalado ainda. Escolha uma sugestão ou informe um nome de modelo para começar.",
+          "info",
+          7000
         );
         this.hasShownEmptyModelsTip = true;
       }
@@ -963,7 +1221,7 @@ class RositaApp {
       this.updateControls();
       await this.verificarStatus();
     } catch (err) {
-      this.adicionarMensagem(`Erro ao carregar modelos: ${err.message || String(err)}`, "assistant");
+      this.notificar(`Erro ao carregar modelos: ${err.message || String(err)}`, "error");
     } finally {
       if (!silent) {
         this.hideLoading();
@@ -983,10 +1241,10 @@ class RositaApp {
     try {
       await window.rositaApi.selecionarModelo(model);
       this.hasActiveModel = true;
-      this.adicionarMensagem(`Modelo ativo alterado para: ${model}`, "assistant");
+      this.notificar(`Modelo ativo alterado para: ${model}`, "success");
       await this.verificarStatus();
     } catch (err) {
-      this.adicionarMensagem(`Erro ao trocar modelo: ${err.message || String(err)}`, "assistant");
+      this.notificar(`Erro ao trocar modelo: ${err.message || String(err)}`, "error");
       await this.carregarModelos();
     } finally {
       this.isAwaitingResponse = false;
@@ -1011,10 +1269,10 @@ class RositaApp {
     try {
       await window.rositaApi.descarregarModeloAtual();
       this.hasActiveModel = false;
-      this.adicionarMensagem(`Modelo descarregado da memória: ${model}.`, "assistant");
+      this.notificar(`Modelo descarregado da memória: ${model}.`, "success");
       await this.carregarModelos();
     } catch (err) {
-      this.adicionarMensagem(`Erro ao descarregar modelo: ${err.message || String(err)}`, "assistant");
+      this.notificar(`Erro ao descarregar modelo: ${err.message || String(err)}`, "error");
     } finally {
       this.isAwaitingResponse = false;
       this.updateControls();
@@ -1038,10 +1296,10 @@ class RositaApp {
     try {
       const payload = await window.rositaApi.excluirModelo(model);
       this.hasActiveModel = Boolean(payload.current_model);
-      this.adicionarMensagem(`Modelo removido com sucesso: ${model}.`, "assistant");
+      this.notificar(`Modelo removido com sucesso: ${model}.`, "success");
       await this.carregarModelos();
     } catch (err) {
-      this.adicionarMensagem(`Erro ao excluir modelo: ${err.message || String(err)}`, "assistant");
+      this.notificar(`Erro ao excluir modelo: ${err.message || String(err)}`, "error");
     } finally {
       this.isAwaitingResponse = false;
       this.updateControls();
@@ -1058,9 +1316,10 @@ class RositaApp {
     this.isDownloadingModel = true;
     this.updateControls();
     this.setDownloadProgress(0, `Iniciando download de ${model}...`);
-    this.adicionarMensagem(
+    this.notificar(
       `Baixando o modelo ${model}. Isso pode levar alguns minutos na primeira vez.`,
-      "assistant"
+      "info",
+      6000
     );
 
     try {
@@ -1072,14 +1331,15 @@ class RositaApp {
       });
 
       this.setDownloadProgress(100, `Modelo ${model} baixado com sucesso.`);
-      this.adicionarMensagem(
+      this.notificar(
         `Modelo instalado com sucesso: ${model}. Agora selecione esse modelo na lista para ativá-lo.`,
-        "assistant"
+        "success",
+        6000
       );
       await this.carregarModelos();
     } catch (err) {
       const errorMessage = err.message || String(err);
-      this.adicionarMensagem(`Erro ao baixar modelo: ${errorMessage}`, "assistant");
+      this.notificar(`Erro ao baixar modelo: ${errorMessage}`, "error");
       this.setDownloadProgress(0, `Falha ao baixar ${model}: ${errorMessage}`);
     } finally {
       this.isDownloadingModel = false;
@@ -1092,28 +1352,61 @@ class RositaApp {
     const texto = (this.userInput.value || "").trim();
     if (!this.session.authenticated || !texto || this.isAwaitingResponse || !this.hasActiveModel) return;
 
-    this.currentTokens = [];
-    this.atualizarTokenStats();
     this.isAwaitingResponse = true;
     this.updateControls();
 
     this.adicionarMensagem(texto, "user");
     this.userInput.value = "";
+    this.atualizarContadorCaracteres();
+    this.ajustarAlturaInput();
     const content = this.adicionarMensagem("", "assistant");
+    // Mostra o indicador "digitando" enquanto o primeiro chunk não chega.
+    content.innerHTML =
+      '<span class="typing-indicator"><span></span><span></span><span></span></span>';
 
+    this.currentAbort = new AbortController();
+    let resposta = "";
+    let primeiroChunk = true;
     try {
-      await window.rositaApi.enviarMensagem(texto, (chunk) => {
-        const novosTokens = this.tokenizeChunk(chunk);
-        this.currentTokens.push(...novosTokens);
-        this.atualizarTokenStats();
-        content.textContent += chunk;
-        this.chatContainer.scrollTop = this.chatContainer.scrollHeight;
-      });
+      await window.rositaApi.enviarMensagem(
+        texto,
+        (chunk) => {
+          if (primeiroChunk) {
+            // Remove o indicador ao receber o início da resposta.
+            content.textContent = "";
+            primeiroChunk = false;
+          }
+          resposta += chunk;
+          // Durante o streaming mostra texto puro (mais fluido); o Markdown
+          // é renderizado ao final, quando a resposta está completa.
+          content.textContent = resposta;
+          // Acompanha o fim só se o usuário não rolou para cima para reler.
+          if (this.grudadoNoFim) {
+            this.scrollParaFim();
+          } else {
+            this.atualizarBotaoScroll();
+          }
+        },
+        this.currentAbort.signal
+      );
+      this.renderMarkdown(content, resposta);
     } catch (err) {
-      content.textContent = `Erro: ${err.message || String(err)}`;
+      if (err?.name === "AbortError") {
+        const aviso = "⏹ Resposta interrompida.";
+        this.renderMarkdown(content, resposta ? `${resposta}\n\n${aviso}` : aviso);
+      } else {
+        content.textContent = `Erro: ${err.message || String(err)}`;
+      }
     } finally {
+      this.currentAbort = null;
       this.isAwaitingResponse = false;
       this.updateControls();
+    }
+  }
+
+  abortarResposta() {
+    if (this.currentAbort) {
+      this.currentAbort.abort();
     }
   }
 
@@ -1123,9 +1416,11 @@ class RositaApp {
     try {
       await window.rositaApi.limparHistorico();
       this.chatContainer.innerHTML = "";
+      this.grudadoNoFim = true;
+      this.atualizarBotaoScroll();
       this.appendWelcomeMessage();
     } catch (err) {
-      this.adicionarMensagem(`Erro ao limpar histórico: ${err.message || String(err)}`, "assistant");
+      this.notificar(`Erro ao limpar histórico: ${err.message || String(err)}`, "error");
     }
   }
 }

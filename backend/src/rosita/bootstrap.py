@@ -72,9 +72,14 @@ def montar_contexto_agente(settings: Settings) -> tuple[str, list[str]]:
 def criar_agente(settings: Settings) -> RositaAgent:
     """Instancia agente carregando toda a documentação oficial da pasta de dados."""
     prompt_sistema, documentos_carregados = montar_contexto_agente(settings)
-    return RositaAgent(
+    agente = RositaAgent(
         settings=settings,
         prompt_sistema=prompt_sistema,
         documentos_contexto=documentos_carregados,
     )
+
+    # Tenta deixar um modelo ativo já no boot (ex.: Ollama com ROSITA_OLLAMA_MODEL),
+    # para o chat ficar disponível sem depender de ação manual do administrador.
+    agente.ativar_modelo_padrao()
+    return agente
 

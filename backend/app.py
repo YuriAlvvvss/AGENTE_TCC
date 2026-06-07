@@ -1,5 +1,7 @@
 """Entrypoint da API Flask ROSITA."""
 
+import logging
+import os
 from pathlib import Path
 import sys
 
@@ -21,10 +23,18 @@ load_dotenv()
 # que as credenciais escolhidas na interface persistam entre reinícios.
 load_dotenv(BACKEND_DIR / ".env", override=True)
 
+# Logging estruturado centralizado (nível controlado por ROSITA_DEBUG).
+_debug = os.getenv("ROSITA_DEBUG", "").strip().lower() in {"1", "true", "yes", "on"}
+logging.basicConfig(
+    level=logging.DEBUG if _debug else logging.INFO,
+    format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
+)
+logger = logging.getLogger("rosita")
+
 app = create_app()
 settings = load_settings()
 
 
 if __name__ == "__main__":
-    print(f"Servidor iniciando em {settings.api_host}:{settings.api_port}")
+    logger.info("Servidor iniciando em %s:%s", settings.api_host, settings.api_port)
     app.run(host=settings.api_host, port=settings.api_port, debug=settings.debug)

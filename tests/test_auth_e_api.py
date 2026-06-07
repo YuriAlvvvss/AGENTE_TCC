@@ -1,0 +1,113 @@
+"""Testes de autenticação, autorização e histórico por usuário via API."""
+
+import pytest
+
+from rosita.app_factory import create_app
+from rosita.utils.history_store import HistoryStore
+
+
+@pytest.fixture()
+def contexto(tmp_path, monkeypatch):
+    """App isolado: banco de histórico temporário e credenciais conhecidas."""
+    db_path = tmp_path / "hist.sqlite3"
+    monkeypatch.setenv("ROSITA_HISTORY_DB", str(db_path))
+    monkeypatch.setenv("ROSITA_SECRET_KEY", "chave-de-teste")
+    monkeypatch.setenv("ROSITA_ADMIN_PASSWORD", "admin123")
+    monkeypatch.setenv("ROSITA_USER_PASSWORD", "usuario123")
+    app = create_app()
+    app.config.update(TESTING=True)
+    return app, db_path
+
+
+def _login(client, username, password):
+    return client.post(
+        "/api/auth/login", json={"username": username, "password": password}
+    )
+
+
+def test_login_sucesso(contexto):
+    app, _ = contexto
+    client = app.test_client()
+    resp = _login(client, "admin", "admin123")
+    assert resp.status_code == 200
+    dados = resp.get_json()
+    assert dados["authenticated"] is True
+    assert dados["role"] == "admin"
+
+
+def test_login_senha_errada(contexto):
+    app, _ = contexto
+    resp = _login(app.test_client(), "admin", "senha-errada")
+    assert resp.status_code == 401
+    assert resp.get_json()["authenticated"] is False
+
+
+def test_login_campos_faltando(contexto):
+    app, _ = contexto
+    resp = app.test_client().post("/api/auth/login", json={"username": "admin"})
+    assert resp.status_code == 400
+
+
+def test_chat_exige_autenticacao(contexto):
+    app, _ = contexto
+    resp = app.test_client().post("/api/chat", json={"mensagem": "oi"})
+    assert resp.status_code == 401
+
+
+def test_historico_exige_autenticacao(contexto):
+    app, _ = contexto
+    assert app.test_client().get("/api/historico").status_code == 401
+
+
+def test_historico_isolado_por_usuario(contexto):
+    app, db_path = contexto
+    # Popula direto no store (sem depender do modelo de IA).
+    store = HistoryStore(db_path)
+    store.append("admin", "user", "ola do admin")
+    store.append("admin", "assistant", "oi admin")
+    store.append("usuario", "user", "ola do usuario")
+
+    ca = app.test_client()
+    _login(ca, "admin", "admin123")
+    cu = app.test_client()
+    _login(cu, "usuario", "usuario123")
+
+    hist_admin = ca.get("/api/historico").get_json()["historico"]
+    hist_user = cu.get("/api/historico").get_json()["historico"]
+
+    assert [m["content"] for m in hist_admin] == ["ola do admin", "oi admin"]
+    assert [m["content"] for m in hist_user] == ["ola do usuario"]
+
+
+def test_limpar_afeta_apenas_o_proprio_usuario(contexto):
+    app, db_path = contexto
+    store = HistoryStore(db_path)
+    store.append("admin", "user", "a")
+    store.append("usuario", "user", "b")
+
+    ca = app.test_client()
+    _login(ca, "admin", "admin123")
+    assert ca.post("/api/limpar").status_code == 200
+
+    assert store.get("admin") == []
+    assert len(store.get("usuario")) == 1
+
+
+def test_health_e_publico_e_tem_estrutura(contexto):
+    app, _ = contexto
+    resp = app.test_client().get("/api/health")
+    # Público (sem login). 200 se o provedor responde; 503 se indisponível.
+    assert resp.status_code in (200, 503)
+    dados = resp.get_json()
+    assert dados["status"] in ("ok", "degraded")
+    assert "ia" in dados and "ok" in dados["ia"]
+    assert (resp.status_code == 200) == dados["ia"]["ok"]
+
+
+def test_rate_limit_no_login(contexto):
+    app, _ = contexto
+    client = app.test_client()
+    codigos = [
+        _login(client, "x", "y").status_code for _ in range(11)
+    ]
+    assert 429 in codigos

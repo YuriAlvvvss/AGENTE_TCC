@@ -2,9 +2,15 @@
 
 from __future__ import annotations
 
+import logging
 import os
+import secrets
 from dataclasses import dataclass
 from pathlib import Path
+
+from werkzeug.security import generate_password_hash
+
+logger = logging.getLogger("rosita.settings")
 
 
 @dataclass(frozen=True)
@@ -13,6 +19,7 @@ class Settings:
 
     base_dir: Path
     data_dir: Path
+    history_db_path: Path
     ai_provider: str
     ollama_model: str
     ollama_host: str
@@ -31,9 +38,9 @@ class Settings:
     secret_key: str = "rosita-dev-secret"
     session_cookie_secure: bool = False
     admin_username: str = "admin"
-    admin_password: str = "admin123"
+    admin_password_hash: str = ""
     user_username: str = "usuario"
-    user_password: str = "usuario123"
+    user_password_hash: str = ""
 
 
 def _env_bool(name: str, default: bool) -> bool:
@@ -41,6 +48,46 @@ def _env_bool(name: str, default: bool) -> bool:
     if value is None:
         return default
     return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _resolve_password_hash(hash_env: str, plain_env: str, dev_default: str, label: str) -> str:
+    """Resolve o hash de senha de um perfil.
+
+    Ordem de prioridade:
+    1. Hash pronto em ``<hash_env>`` (recomendado — gerado uma vez e salvo no .env).
+    2. Senha em texto em ``<plain_env>`` (gera o hash em tempo de execução).
+    3. Senha padrão de desenvolvimento (com aviso — NÃO usar em produção).
+    """
+    hash_value = (os.getenv(hash_env) or "").strip()
+    if hash_value:
+        return hash_value
+
+    plain = os.getenv(plain_env)
+    if plain:
+        return generate_password_hash(plain)
+
+    logger.warning(
+        "Senha do perfil '%s' não configurada (%s e %s ausentes). "
+        "Usando senha padrão de desenvolvimento — defina %s no .env antes de publicar.",
+        label,
+        hash_env,
+        plain_env,
+        hash_env,
+    )
+    return generate_password_hash(dev_default)
+
+
+def _resolve_secret_key() -> str:
+    """Obtém a SECRET_KEY do ambiente ou gera uma aleatória (com aviso)."""
+    secret_key = (os.getenv("ROSITA_SECRET_KEY") or "").strip()
+    if secret_key:
+        return secret_key
+
+    logger.warning(
+        "ROSITA_SECRET_KEY não definida — gerando uma chave aleatória. "
+        "As sessões NÃO persistem entre reinícios; defina ROSITA_SECRET_KEY no .env."
+    )
+    return secrets.token_hex(32)
 
 
 def load_settings() -> Settings:
@@ -69,9 +116,18 @@ def load_settings() -> Settings:
         or "http://127.0.0.1:11434"
     ).strip().rstrip("/")
 
+    history_db_path = Path(
+        os.getenv("ROSITA_HISTORY_DB", str(backend_dir / "rosita_history.sqlite3"))
+    ).expanduser()
+    if not history_db_path.is_absolute():
+        history_db_path = (backend_dir / history_db_path).resolve()
+    else:
+        history_db_path = history_db_path.resolve()
+
     return Settings(
         base_dir=backend_dir,
         data_dir=data_dir,
+        history_db_path=history_db_path,
         ai_provider=(os.getenv("ROSITA_AI_PROVIDER") or "ollama").strip().lower(),
         ollama_model=(os.getenv("ROSITA_OLLAMA_MODEL") or "").strip(),
         ollama_host=ollama_host,
@@ -92,11 +148,15 @@ def load_settings() -> Settings:
             "repeat_penalty": float(os.getenv("ROSITA_REPEAT_PENALTY", "1.1")),
         },
         bundled_data_dir=bundled_data_dir,
-        secret_key=(os.getenv("ROSITA_SECRET_KEY") or "rosita-dev-secret").strip(),
+        secret_key=_resolve_secret_key(),
         session_cookie_secure=_env_bool("ROSITA_SESSION_COOKIE_SECURE", False),
         admin_username=(os.getenv("ROSITA_ADMIN_USERNAME") or "admin").strip(),
-        admin_password=os.getenv("ROSITA_ADMIN_PASSWORD", "admin123"),
+        admin_password_hash=_resolve_password_hash(
+            "ROSITA_ADMIN_PASSWORD_HASH", "ROSITA_ADMIN_PASSWORD", "admin123", "admin"
+        ),
         user_username=(os.getenv("ROSITA_USER_USERNAME") or "usuario").strip(),
-        user_password=os.getenv("ROSITA_USER_PASSWORD", "usuario123"),
+        user_password_hash=_resolve_password_hash(
+            "ROSITA_USER_PASSWORD_HASH", "ROSITA_USER_PASSWORD", "usuario123", "usuario"
+        ),
     )
 
