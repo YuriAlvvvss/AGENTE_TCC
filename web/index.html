@@ -12,7 +12,7 @@
     .hidden { display: none !important; }
     .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border-width: 0; }
   </style>
-  <link rel="stylesheet" href="/styles/main.css?v=20260607f" />
+  <link rel="stylesheet" href="/styles/main.css?v=20260608a" />
   <script>
     // Aplica o tema o quanto antes para evitar "flash" do tema claro.
     (function () {
@@ -79,19 +79,30 @@
 
   <!-- APP VIEW -->
   <div id="app-shell" class="app-layout hidden">
+    <div id="sidebar-backdrop" class="sidebar-backdrop" aria-hidden="true"></div>
     <!-- SIDEBAR -->
-    <aside class="sidebar">
+    <aside class="sidebar" id="app-sidebar">
       <div class="sidebar-header">
         <div class="sidebar-logo">
-          <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+          <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
             <circle cx="50" cy="50" r="45" fill="none" stroke="currentColor" stroke-width="2"/>
             <text x="50" y="65" text-anchor="middle" font-size="40" font-weight="bold" fill="currentColor">R</text>
           </svg>
           <div>
             <div class="sidebar-app-name">ROSITA</div>
-            <div class="sidebar-app-subtitle">Assistente</div>
+            <div class="sidebar-app-subtitle">Assistente Escolar</div>
           </div>
         </div>
+        <button id="sidebar-close-btn" class="sidebar-close-btn" type="button" title="Fechar menu" aria-label="Fechar menu">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/></svg>
+        </button>
+      </div>
+
+      <div class="sidebar-primary-action">
+        <button id="new-chat-btn" class="btn-new-chat" type="button">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+          Nova conversa
+        </button>
       </div>
 
       <nav class="sidebar-nav" role="navigation" aria-label="Navegação principal">
@@ -115,15 +126,31 @@
         </button>
       </nav>
 
-      <div class="sidebar-footer">
-        <div class="sidebar-user">
-          <div class="user-avatar" id="user-avatar">U</div>
-          <div>
-            <div class="user-name" id="user-name">Usuário</div>
-            <div class="user-role" id="user-role">visitante</div>
-          </div>
+      <div class="sidebar-history">
+        <p class="sidebar-history-label">Histórico</p>
+        <div id="history-list" class="history-list">
+          <button type="button" class="history-item history-item--active" id="history-current" hidden>
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
+            <span>Conversa atual</span>
+          </button>
+          <p class="history-empty" id="history-empty">Nenhuma conversa ainda</p>
         </div>
-        <div class="sidebar-footer-actions">
+      </div>
+
+      <div class="sidebar-footer">
+        <button id="settings-btn" class="sidebar-settings-btn" type="button">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M19.14 12.94c.04-.31.06-.63.06-.94 0-.31-.02-.63-.06-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+          Configurações
+        </button>
+        <div class="sidebar-footer-row">
+          <div class="sidebar-user">
+            <div class="user-avatar" id="user-avatar">U</div>
+            <div>
+              <div class="user-name" id="user-name">Usuário</div>
+              <div class="user-role" id="user-role">visitante</div>
+            </div>
+          </div>
+          <div class="sidebar-footer-actions">
           <button id="theme-toggle-btn" class="btn-icon" title="Alternar tema claro/escuro" aria-label="Alternar tema claro/escuro">
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <path d="M12 3a9 9 0 1 0 9 9c0-.46-.04-.92-.1-1.36a5.39 5.39 0 0 1-7.54-7.54c-.44-.06-.9-.1-1.36-.1z"/>
@@ -135,82 +162,132 @@
             </svg>
           </button>
         </div>
+        </div>
       </div>
     </aside>
 
     <!-- MAIN CONTENT -->
     <main class="main-content">
-      <!-- CHAT SECTION -->
-      <section id="chat-section" class="section section--active">
-        <div class="section-header">
-          <div>
-            <h2 id="conversation-title">Conversa: Regimento Escolar</h2>
-            <p class="section-subtitle">Assistente inteligente para dúvidas da escola</p>
+      <!-- CHAT SECTION — Assistente Escolar -->
+      <section id="chat-section" class="section section--active assistant-main">
+        <header class="assistant-header">
+          <div class="assistant-header-start">
+            <button id="sidebar-toggle-btn" class="assistant-menu-btn" type="button" title="Abrir menu" aria-label="Abrir menu">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+            </button>
+            <div>
+              <h2 class="assistant-title">
+                Assistente Escolar
+                <span class="assistant-badge">Beta</span>
+              </h2>
+            </div>
           </div>
-          <div class="header-tools chat-header-actions">
-            <div id="status-pill" class="status-pill status--online">
+          <div class="assistant-header-end">
+            <div id="status-pill" class="status-pill status--online assistant-status-pill">
               <span class="status-dot"></span>
               <span id="status">Sistema online</span>
             </div>
-            <div id="provider-pill" class="provider-pill">Provedor: --</div>
-            <button id="clear-btn" class="btn-secondary" title="Limpar histórico">
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-9l-1 1H5v2h14V4z"/>
-              </svg>
-              Limpar
+            <div id="provider-pill" class="provider-pill assistant-provider-pill">Provedor: --</div>
+            <button id="nav-admin-shortcut" class="assistant-icon-btn hidden" type="button" title="Painel administrativo" aria-label="Painel administrativo">
+              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M4 8h4V4H4v4zm6 12h4v-4h-4v4zm-6 0h4v-4H4v4zm0-6h4v-4H4v4zm6 0h4v-4h-4v4zm6-10v4h4V4h-4zm-6 4h4V4h-4v4zm6 6h4v-4h-4v4zm0 6h4v-4h-4v4z"/></svg>
             </button>
+            <div class="assistant-user-chip" title="Usuário logado">
+              <div class="user-avatar assistant-user-avatar" id="header-user-avatar">U</div>
+            </div>
           </div>
-        </div>
+        </header>
 
-        <div class="chat-main-grid">
-          <div class="chat-pane">
-            <div id="chat-container" class="chat-container" role="log" aria-live="polite"></div>
+        <div class="assistant-body">
+          <div id="assistant-empty-state" class="assistant-empty-state">
+            <section class="assistant-greeting" aria-label="Saudação">
+              <h1 id="greeting-line-1" class="assistant-greeting-line assistant-greeting-line--primary">Olá, aluno.</h1>
+              <p id="greeting-line-2" class="assistant-greeting-line assistant-greeting-line--secondary">Como posso ajudar hoje?</p>
+            </section>
+
+            <section id="assistant-suggestions" class="assistant-suggestions" aria-label="Sugestões de perguntas">
+              <button type="button" class="suggestion-card" data-prompt="Resumo da matéria de história">
+                <span class="suggestion-card__title">Resumo da matéria de história</span>
+                <span class="suggestion-card__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+                </span>
+              </button>
+              <button type="button" class="suggestion-card" data-prompt="Dúvidas sobre o boletim">
+                <span class="suggestion-card__title">Dúvidas sobre o boletim</span>
+                <span class="suggestion-card__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z"/></svg>
+                </span>
+              </button>
+              <button type="button" class="suggestion-card" data-prompt="Cardápio da cantina hoje">
+                <span class="suggestion-card__title">Cardápio da cantina hoje</span>
+                <span class="suggestion-card__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+                </span>
+              </button>
+              <button type="button" class="suggestion-card" data-prompt="Quando é a próxima prova?">
+                <span class="suggestion-card__title">Quando é a próxima prova?</span>
+                <span class="suggestion-card__icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="currentColor"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
+                </span>
+              </button>
+            </section>
+          </div>
+
+          <div class="assistant-chat-pane">
+            <div id="chat-container" class="assistant-chat-messages chat-container" role="log" aria-live="polite"></div>
             <button id="scroll-bottom-btn" class="scroll-bottom-btn hidden" type="button" title="Ir para as mensagens mais recentes" aria-label="Ir para as mensagens mais recentes">
               <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 16l-6-6h12z"/></svg>
             </button>
           </div>
         </div>
 
-        <div id="quick-actions" class="quick-actions">
-          <button type="button" class="quick-chip">Consultar regimento</button>
-          <button type="button" class="quick-chip">Horários</button>
-          <button type="button" class="quick-chip">Matrícula</button>
-          <button type="button" class="quick-chip">Normas</button>
-        </div>
+        <footer class="assistant-chat-footer">
+          <div class="assistant-input-wrap">
+            <div class="model-selector assistant-model-selector">
+              <label for="model-select" class="model-selector-label">
+                <svg class="model-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M16 17h-1v-4h1m1-4H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h14v12z"/>
+                </svg>
+              </label>
+              <select id="model-select" class="model-selector-select" aria-label="Selecione o modelo de IA">
+                <option value="">Selecione um modelo...</option>
+              </select>
+            </div>
 
-        <!-- CHAT INPUT -->
-        <div class="chat-input-section">
-          <div class="model-selector">
-            <label for="model-select" class="model-selector-label">
-              <svg class="model-icon" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M16 17h-1v-4h1m1-4H3c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H3V5h14v12z"/>
-              </svg>
-            </label>
-            <select id="model-select" class="model-selector-select" aria-label="Selecione o modelo de IA">
-              <option value="">Selecione um modelo...</option>
-            </select>
-          </div>
+            <div class="assistant-input-bar">
+              <button type="button" class="assistant-input-icon" title="Anexar arquivo" aria-label="Anexar arquivo">
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.5 6v11.5c0 2.21-1.79 4-4 4s-4-1.79-4-4V5c0-1.38 1.12-2.5 2.5-2.5s2.5 1.12 2.5 2.5v10.5c0 .55-.45 1-1 1s-1-.45-1-1V6H10v9.5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V5c0-2.21-1.79-4-4-4S7 2.79 7 5v12.5c0 3.04 2.46 5.5 5.5 5.5s5.5-2.46 5.5-5.5V6h-1.5z"/></svg>
+              </button>
 
-          <div class="input-wrapper">
-            <textarea
-              id="user-input"
-              class="chat-input"
-              placeholder="Digite sua pergunta... (Enter envia, Shift+Enter quebra linha)"
-              maxlength="1000"
-              rows="1"
-              aria-label="Digite sua mensagem"
-            ></textarea>
-            <button id="send-btn" class="btn-send" title="Enviar mensagem (Enter)">
-              <svg viewBox="0 0 24 24" fill="currentColor">
-                <path d="M16.6915026,12.4744748 L3.50612381,13.2599618 C3.19218622,13.2599618 3.03521743,13.4170592 3.03521743,13.5741566 L1.15159189,20.0151496 C0.8376543,20.8006365 0.99,21.89 1.77946707,22.52 C2.41,22.99 3.50612381,23.1 4.13399899,22.8429026 L21.714504,14.0454487 C22.6563168,13.5741566 23.1272231,12.6315722 22.9702544,11.6889879 L4.13399899,1.16346272 C3.34915502,0.9 2.40734225,1.00636533 1.77946707,1.4776575 C0.994623095,2.10604706 0.837654326,3.0486314 1.15159189,3.99021575 L3.03521743,10.4312088 C3.03521743,10.5883061 3.34915502,10.7454035 3.50612381,10.7454035 L16.6915026,11.5308905 C16.6915026,11.5308905 17.1624089,11.5308905 17.1624089,12.0021827 C17.1624089,12.4744748 16.6915026,12.4744748 16.6915026,12.4744748 Z"/>
-              </svg>
-            </button>
-          </div>
+              <textarea
+                id="user-input"
+                class="chat-input assistant-chat-input"
+                placeholder="Pergunte ao assistente da escola..."
+                maxlength="1000"
+                rows="1"
+                aria-label="Digite sua mensagem"
+              ></textarea>
 
-          <div class="input-hints">
-            <span id="char-count" class="char-count">0/1000</span>
+              <button id="mic-btn" class="assistant-input-icon assistant-input-icon--mic" type="button" title="Usar microfone" aria-label="Usar microfone">
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.91-3c-.49 0-.9.36-.98.85C16.52 14.2 14.47 16 12 16s-4.52-1.8-4.93-4.15c-.08-.49-.49-.85-.98-.85-.61 0-1.09.54-1 1.14.49 3 2.89 5.35 5.91 5.78V20c0 .55.45 1 1 1s1-.45 1-1v-2.08c3.02-.43 5.42-2.78 5.91-5.78.1-.6-.39-1.14-1-1.14z"/></svg>
+              </button>
+
+              <button id="send-btn" class="btn-send assistant-send-btn hidden" type="button" title="Enviar mensagem (Enter)" aria-label="Enviar mensagem">
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                </svg>
+              </button>
+            </div>
+
+            <div class="assistant-input-meta">
+              <button id="clear-btn" class="assistant-clear-btn" type="button" title="Limpar histórico">Limpar conversa</button>
+              <span id="char-count" class="char-count">0/1000</span>
+            </div>
+
+            <p class="assistant-disclaimer">
+              A IA pode cometer erros. Verifique informações importantes no portal oficial da Escola.
+            </p>
           </div>
-        </div>
+        </footer>
       </section>
 
       <!-- ADMIN SECTION -->
@@ -509,9 +586,9 @@
       window.ROSITA_API_BASE_URL = loc.protocol + "//" + loc.hostname + ":" + apiPort;
     })();
   </script>
-  <script src="/scripts/vendor/marked.min.js?v=20260607f" defer></script>
-  <script src="/scripts/vendor/purify.min.js?v=20260607f" defer></script>
-  <script src="/scripts/api_client.js?v=20260607f" defer></script>
-  <script src="/scripts/main.js?v=20260607f" defer></script>
+  <script src="/scripts/vendor/marked.min.js?v=20260608a" defer></script>
+  <script src="/scripts/vendor/purify.min.js?v=20260608a" defer></script>
+  <script src="/scripts/api_client.js?v=20260608a" defer></script>
+  <script src="/scripts/main.js?v=20260608a" defer></script>
 </body>
 </html>
