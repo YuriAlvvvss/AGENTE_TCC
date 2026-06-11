@@ -13,22 +13,10 @@ class RositaApp {
     this.logoutBtn = document.getElementById("logout-btn");
     this.themeToggleBtn = document.getElementById("theme-toggle-btn");
     this.chatContainer = document.getElementById("chat-container");
-    this.modelSelectorWrap = document.querySelector(".assistant-model-selector") || document.querySelector(".model-selector");
+    this.modelSelectorWrap = document.querySelector(".model-selector");
     this.userInput = document.getElementById("user-input");
     this.sendBtn = document.getElementById("send-btn");
-    this.micBtn = document.getElementById("mic-btn");
     this.clearBtn = document.getElementById("clear-btn");
-    this.newChatBtn = document.getElementById("new-chat-btn");
-    this.settingsBtn = document.getElementById("settings-btn");
-    this.suggestionsEl = document.getElementById("assistant-suggestions");
-    this.greetingLine1 = document.getElementById("greeting-line-1");
-    this.historyCurrent = document.getElementById("history-current");
-    this.historyEmpty = document.getElementById("history-empty");
-    this.sidebarToggleBtn = document.getElementById("sidebar-toggle-btn");
-    this.sidebarCloseBtn = document.getElementById("sidebar-close-btn");
-    this.sidebarBackdrop = document.getElementById("sidebar-backdrop");
-    this.headerUserAvatar = document.getElementById("header-user-avatar");
-    this.navAdminShortcut = document.getElementById("nav-admin-shortcut");
     this.statusEl = document.getElementById("status") || document.getElementById("status-indicator");
     this.serverInfoEl = document.getElementById("server-info");
     this.systemHostEl = document.getElementById("system-host");
@@ -50,7 +38,7 @@ class RositaApp {
     this.summaryProviderEl = document.getElementById("summary-provider");
     this.summaryModelEl = document.getElementById("summary-model");
     this.summaryLastUpdateEl = document.getElementById("summary-last-update");
-    this.quickActionsEl = document.getElementById("quick-actions"); // legado; substituído por assistant-suggestions
+    this.quickActionsEl = document.getElementById("quick-actions");
     this.reloadModelsBtn = document.getElementById("reload-models-btn");
     this.unloadModelBtn = document.getElementById("unload-model-btn");
     this.deleteModelBtn = document.getElementById("delete-model-btn");
@@ -138,18 +126,6 @@ class RositaApp {
       }
     });
     this.clearBtn?.addEventListener("click", () => this.limparChat());
-    this.newChatBtn?.addEventListener("click", () => this.limparChat());
-    this.settingsBtn?.addEventListener("click", () => {
-      if (this.isAdmin()) {
-        this.switchSection("admin");
-      } else {
-        this.notificar("Configurações avançadas disponíveis apenas para administradores.", "info");
-      }
-    });
-    this.sidebarToggleBtn?.addEventListener("click", () => this.abrirSidebarMobile());
-    this.sidebarCloseBtn?.addEventListener("click", () => this.fecharSidebarMobile());
-    this.sidebarBackdrop?.addEventListener("click", () => this.fecharSidebarMobile());
-    this.navAdminShortcut?.addEventListener("click", () => this.switchSection("admin"));
     this.reloadModelsBtn?.addEventListener("click", () => this.carregarModelos());
     this.unloadModelBtn?.addEventListener("click", () => this.descarregarModeloAtual());
     this.deleteModelBtn?.addEventListener("click", () => this.excluirModeloSelecionado());
@@ -167,30 +143,14 @@ class RositaApp {
     this.adminTabs.forEach((tab) => {
       tab.addEventListener("click", () => this.switchAdminTab(tab.dataset.tab));
     });
-    this.userInput?.addEventListener("input", () => {
-      this.atualizarContadorCaracteres();
-      this.atualizarBotoesInput();
-    });
+    this.userInput?.addEventListener("input", () => this.atualizarContadorCaracteres());
     this.quickActionsEl?.addEventListener("click", (event) => {
       const button = event.target.closest(".quick-chip");
       if (!button || !this.userInput) return;
       this.userInput.value = button.textContent.trim();
       this.atualizarContadorCaracteres();
       this.ajustarAlturaInput();
-      this.atualizarBotoesInput();
       this.userInput.focus();
-    });
-    // Cards de sugestão da tela inicial — preenchem e enviam a pergunta.
-    this.suggestionsEl?.addEventListener("click", (event) => {
-      const card = event.target.closest(".suggestion-card");
-      if (!card || !this.userInput) return;
-      const texto = (card.dataset.prompt || card.querySelector(".suggestion-card__title")?.textContent || "").trim();
-      if (!texto) return;
-      this.userInput.value = texto;
-      this.atualizarContadorCaracteres();
-      this.ajustarAlturaInput();
-      this.atualizarBotoesInput();
-      this.enviarMensagem();
     });
     this.configFileSelect?.addEventListener("change", () => this.carregarArquivoConfiguracao());
     this.reloadConfigBtn?.addEventListener("click", () => this.carregarArquivosConfiguracao());
@@ -261,50 +221,11 @@ class RositaApp {
     }
   }
 
-  /** Controla saudação/cards vazios vs. área de mensagens do assistente. */
+  /** Mostra/esconde os chips de ação rápida conforme a conversa já começou. */
   setConversaAtiva(ativa) {
     document
       .getElementById("chat-section")
       ?.classList.toggle("has-conversation", Boolean(ativa));
-    this.atualizarHistoricoSidebar();
-  }
-
-  /** Personaliza a saudação com o nome do usuário logado. */
-  atualizarSaudacao() {
-    if (!this.greetingLine1) return;
-    const nome = this.session.displayName || this.session.username || "aluno";
-    const primeiroNome = nome.split(/\s+/)[0] || "aluno";
-    this.greetingLine1.textContent = `Olá, ${primeiroNome}.`;
-  }
-
-  /** Atualiza o bloco de histórico lateral conforme existem mensagens. */
-  atualizarHistoricoSidebar() {
-    const temMensagens = Boolean(this.chatContainer?.children.length);
-    if (this.historyCurrent) {
-      this.historyCurrent.hidden = !temMensagens;
-    }
-    if (this.historyEmpty) {
-      this.historyEmpty.hidden = temMensagens;
-    }
-  }
-
-  abrirSidebarMobile() {
-    this.appShell?.classList.add("sidebar-open");
-  }
-
-  fecharSidebarMobile() {
-    this.appShell?.classList.remove("sidebar-open");
-  }
-
-  /** Alterna ícone de microfone (vazio) e botão de envio (com texto). */
-  atualizarBotoesInput() {
-    const hasText = Boolean((this.userInput?.value || "").trim());
-    if (this.micBtn) {
-      this.micBtn.classList.toggle("hidden", hasText || this.isAwaitingResponse);
-    }
-    if (this.sendBtn && !this.isAwaitingResponse) {
-      this.sendBtn.classList.toggle("hidden", !hasText);
-    }
   }
 
   applySession(payload = {}) {
@@ -339,14 +260,6 @@ class RositaApp {
       const initial = (this.session.username || roleLabel).charAt(0).toUpperCase();
       this.userAvatarEl.textContent = initial || "U";
     }
-    if (this.headerUserAvatar) {
-      this.headerUserAvatar.textContent = this.userAvatarEl?.textContent || "U";
-    }
-    if (this.navAdminShortcut) {
-      this.navAdminShortcut.classList.toggle("hidden", !this.isAdmin());
-    }
-
-    this.atualizarSaudacao();
 
     if (this.accessHintEl) {
       this.accessHintEl.textContent = this.isAdmin()
@@ -456,15 +369,13 @@ class RositaApp {
       }
     }
     this.scrollParaFim();
-    this.atualizarHistoricoSidebar();
   }
 
   appendWelcomeMessage() {
     if (!this.chatContainer || this.chatContainer.children.length > 0) return;
 
-    // Admin sem modelo ativo: mostra aviso na área de mensagens com atalho.
+    // Admin sem modelo ativo: oferece um atalho direto para resolver isso.
     if (this.isAdmin() && !this.hasActiveModel) {
-      this.setConversaAtiva(true);
       const content = this.adicionarMensagem(
         "Login de administrador ativo. Nenhum modelo está ativo no momento — ative um para liberar o chat da ROSITA.",
         "assistant"
@@ -482,8 +393,10 @@ class RositaApp {
       return;
     }
 
-    // Estado vazio: saudação + cards (sem mensagens no container).
-    this.setConversaAtiva(false);
+    const message = this.isAdmin()
+      ? "Login de administrador ativo. Você pode conversar com a ROSITA e gerenciar as configurações do sistema."
+      : "Login de usuário ativo. Este perfil possui acesso somente ao bate-papo com a ROSITA.";
+    this.adicionarMensagem(message, "assistant");
   }
 
   updateControls() {
@@ -497,7 +410,7 @@ class RositaApp {
       this.userInput.placeholder = !loggedIn
         ? "Faça login para usar o chat"
         : this.hasActiveModel
-          ? "Pergunte ao assistente da escola..."
+          ? "Digite sua pergunta..."
           : admin
             ? "Ative um modelo em Administração para conversar"
             : "⏳ Preparando a ROSITA... o chat abre automaticamente";
@@ -505,7 +418,6 @@ class RositaApp {
     if (this.sendBtn) {
       if (this.isAwaitingResponse) {
         // Durante a resposta o botão vira "parar" e fica clicável para abortar.
-        this.sendBtn.classList.remove("hidden");
         this.sendBtn.disabled = false;
         this.sendBtn.classList.add("btn-send--stop");
         this.sendBtn.title = "Parar resposta";
@@ -560,14 +472,11 @@ class RositaApp {
     if (this.saveConfigBtn) {
       this.saveConfigBtn.disabled = configDisabled || !this.selectedConfigFile;
     }
-    this.atualizarBotoesInput();
   }
 
   switchSection(sectionName) {
     if (!sectionName) return;
     if (sectionName === "admin" && !this.isAdmin()) return;
-
-    this.fecharSidebarMobile();
 
     this.navItems.forEach((item) => {
       const active = item.dataset.section === sectionName;
