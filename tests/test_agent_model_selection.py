@@ -473,7 +473,7 @@ class AgentModelSelectionTests(unittest.TestCase):
         self.assertTrue(payload["authenticated"])
 
     @patch("rosita.core.agent.ollama.Client")
-    def test_regular_user_cannot_access_admin_settings(self, mock_client):
+    def test_regular_user_login_is_rejected(self, mock_client):
         mock_client.return_value.list.return_value = {"models": []}
 
         settings = self.make_settings("")
@@ -488,13 +488,13 @@ class AgentModelSelectionTests(unittest.TestCase):
             "/api/auth/login",
             json={"username": "usuario", "password": "usuario123"},
         )
-        res = client.get("/api/config/files")
 
-        self.assertEqual(login.status_code, 200)
-        self.assertEqual(res.status_code, 403)
+        self.assertEqual(login.status_code, 403)
+        payload = login.get_json()
+        self.assertIn("administrador", payload["erro"].lower())
 
     @patch("rosita.core.agent.ollama.Client")
-    def test_regular_user_status_hides_hardware_snapshot(self, mock_client):
+    def test_guest_cannot_access_admin_settings(self, mock_client):
         mock_client.return_value.list.return_value = {"models": []}
 
         settings = self.make_settings("")
@@ -505,16 +505,46 @@ class AgentModelSelectionTests(unittest.TestCase):
         app.register_blueprint(create_api_blueprint(agent, settings))
         client = app.test_client()
 
-        client.post(
-            "/api/auth/login",
-            json={"username": "usuario", "password": "usuario123"},
-        )
+        res = client.get("/api/config/files")
+
+        self.assertEqual(res.status_code, 401)
+
+    @patch("rosita.core.agent.ollama.Client")
+    def test_guest_status_hides_hardware_snapshot(self, mock_client):
+        mock_client.return_value.list.return_value = {"models": []}
+
+        settings = self.make_settings("")
+        agent = RositaAgent(settings, "prompt")
+
+        app = Flask(__name__)
+        app.secret_key = "test-secret"
+        app.register_blueprint(create_api_blueprint(agent, settings))
+        client = app.test_client()
+
         res = client.get("/api/status")
 
         self.assertEqual(res.status_code, 200)
         payload = res.get_json()
-        self.assertEqual(payload["role"], "user")
+        self.assertEqual(payload["role"], "guest")
         self.assertNotIn("sistema", payload)
+
+    @patch("rosita.core.agent.ollama.Client")
+    def test_guest_can_clear_chat_history(self, mock_client):
+        mock_client.return_value.list.return_value = {"models": []}
+
+        settings = self.make_settings("")
+        agent = RositaAgent(settings, "prompt")
+        agent.historico.append({"role": "user", "content": "teste"})
+
+        app = Flask(__name__)
+        app.secret_key = "test-secret"
+        app.register_blueprint(create_api_blueprint(agent, settings))
+        client = app.test_client()
+
+        res = client.post("/api/limpar")
+
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(agent.obter_historico(), [])
 
 
 if __name__ == "__main__":

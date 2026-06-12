@@ -156,6 +156,14 @@ def create_api_blueprint(agent: RositaAgent, settings: Settings) -> Blueprint:
         if user is None or password != user["password"]:
             session.clear()
             return jsonify({"erro": "Usuário ou senha inválidos.", **_session_payload()}), 401
+        if user["role"] != "admin":
+            session.clear()
+            return jsonify(
+                {
+                    "erro": "Acesso restrito ao administrador. O chat está disponível sem login.",
+                    **_session_payload(),
+                }
+            ), 403
 
         session.clear()
         session["username"] = user["username"]
@@ -178,7 +186,6 @@ def create_api_blueprint(agent: RositaAgent, settings: Settings) -> Blueprint:
         )
 
     @api_bp.route("/chat", methods=["POST"])
-    @_require_roles("admin", "user")
     def chat() -> Any:
         dados = request.get_json(silent=True)
         if dados is None or not isinstance(dados, dict):
@@ -386,13 +393,11 @@ def create_api_blueprint(agent: RositaAgent, settings: Settings) -> Blueprint:
         )
 
     @api_bp.route("/limpar", methods=["POST"])
-    @_require_roles("admin", "user")
     def limpar() -> Any:
         agent.limpar_historico()
         return jsonify({"mensagem": "Histórico limpo com sucesso."})
 
     @api_bp.route("/historico", methods=["GET"])
-    @_require_roles("admin", "user")
     def historico() -> Any:
         return jsonify({"historico": agent.obter_historico()})
 
