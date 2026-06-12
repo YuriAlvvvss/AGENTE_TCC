@@ -5,6 +5,47 @@ Projeto Python com backend Flask e frontend web, com suporte a provedores de IA:
 - OpenRouter (API)
 - Gateway local (servidor OpenAI-compatible na sua rede)
 
+A ROSITA é um assistente que responde dúvidas sobre o regimento e os procedimentos
+da escola, baseando-se na documentação oficial carregada em memória.
+
+## Arquitetura
+
+```txt
+┌──────────────────────────────┐
+│  Frontend (web/) — Nginx     │
+│  HTML + CSS + JS (vanilla)   │
+│  • Login / sessão            │
+│  • Chat com streaming (SSE)  │
+│  • Markdown + tema claro/escuro
+│  • Painel admin / status     │
+└──────────────┬───────────────┘
+               │  REST + SSE  (/api/*, cookie de sessão)
+┌──────────────▼───────────────┐
+│  Backend (Flask + Gunicorn)  │
+│  • Rotas/auth (hash + rate-limit)
+│  • RositaAgent (orquestração)│
+│  • HistoryStore (SQLite, por usuário)
+└──────────────┬───────────────┘
+               │
+   ┌───────────┼───────────┐
+   ▼           ▼           ▼
+┌────────┐ ┌──────────┐ ┌──────────┐
+│ Ollama │ │OpenRouter│ │ Gateway  │
+│ (local)│ │ (nuvem)  │ │ (custom) │
+└────────┘ └──────────┘ └──────────┘
+```
+
+## Principais recursos
+
+- **Autenticação** com senhas em hash (`werkzeug`), `secret_key` por ambiente e
+  rate limiting em login/chat.
+- **Histórico por usuário** persistido em SQLite (sobrevive a reinícios).
+- **Chat em streaming** com renderização de Markdown, indicador de "digitando",
+  botão de parar/copiar e auto-scroll inteligente.
+- **Tema claro/escuro** com persistência e respeito ao `prefers-color-scheme`.
+- **Múltiplos provedores de IA** alternáveis em runtime pela interface admin.
+- **Healthcheck** (`/api/health`) que verifica o provedor de IA.
+
 ## Estrutura padronizada
 
 ```txt
@@ -86,6 +127,47 @@ ROSITA_GATEWAY_MODEL=seu-modelo
 O gateway deve expor `GET /v1/models` e `POST /v1/chat/completions` (URL base **sem** `/v1` no final).
 
 Copie `.env.example` para `.env` e preencha as variaveis do provedor desejado.
+
+## Seguranca e autenticacao
+
+As credenciais e a chave de sessao vem do `.env` (veja `.env.example`):
+
+```env
+# Gere a chave: python -c "import secrets; print(secrets.token_hex(32))"
+ROSITA_SECRET_KEY=
+
+# Gere o hash: python -c "from werkzeug.security import generate_password_hash as g; print(g('SUA_SENHA'))"
+ROSITA_ADMIN_PASSWORD_HASH=
+ROSITA_USER_PASSWORD_HASH=
+```
+
+- As senhas sao verificadas por **hash** (`scrypt`/`werkzeug`), com comparacao de
+  tempo constante (protecao contra timing attack).
+- Se `ROSITA_SECRET_KEY` ficar vazia, uma chave aleatoria e gerada a cada inicio
+  (as sessoes nao persistem entre reinicios) — defina-a em producao.
+- Se os `_HASH` ficarem vazios, aceita-se a senha em texto via
+  `ROSITA_ADMIN_PASSWORD` / `ROSITA_USER_PASSWORD`; na ausencia de ambos, usa-se
+  uma senha **padrao de desenvolvimento** (com aviso no log) — **nao** use em producao.
+- `POST /api/auth/login` (10/min) e `POST /api/chat` (20/min) tem limite de taxa.
+
+## Historico por usuario
+
+O historico de conversa e persistido em **SQLite**, isolado por usuario, e
+sobrevive a reinicios do servidor. O caminho do banco e configuravel:
+
+```env
+ROSITA_HISTORY_DB=backend/rosita_history.sqlite3
+```
+
+## Testes
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+
+Cobrem o `HistoryStore`, validacao de entrada, autenticacao/autorizacao e o nucleo
+do agente (sem depender de um servidor de IA).
 
 ## Execucao
 
@@ -195,13 +277,16 @@ No **MiniOS ou máquina sem GPU**, ignore `docker-compose.gpu.yml` e prefira mod
 ## API
 
 - `GET /`
+- `GET /api/health` — healthcheck que verifica o provedor de IA (200 ok / 503 degradado)
 - `GET /api/status` (inclui `provedor_ia`, `gateway_url` quando aplicavel)
-- `POST /api/chat`
-- `GET /api/historico`
-- `POST /api/limpar`
+- `POST /api/auth/login` (rate limit 10/min), `POST /api/auth/logout`, `GET /api/auth/session`
+- `POST /api/chat` (rate limit 20/min; resposta em SSE)
+- `GET /api/historico` (do usuario logado), `POST /api/limpar` (do usuario logado)
 - `GET /api/provedores` (admin)
 - `POST /api/provedores/trocar` (admin; body: `{ "provedor": "ollama" | "openrouter" | "gateway" }`)
 - `GET /api/models`, `POST /api/models/select` (admin)
+
+O plano de melhorias e correcoes do projeto esta em `docs/PLANO_MELHORIAS.md`.
 
 ## Documentacao adicional
 

@@ -19,7 +19,7 @@ class RositaApiClient {
     if (typeof window !== "undefined" && window.location) {
       const { protocol, hostname, port } = window.location;
       if (hostname && (protocol === "http:" || protocol === "https:")) {
-        const apiPort = port === "18080" || port === "" ? "18500" : port;
+        const apiPort = port === "37642" || port === "" ? "37643" : port;
         pushCandidate(`${protocol}//${hostname}:${apiPort}`);
       }
     }
@@ -183,13 +183,14 @@ class RositaApiClient {
     return { text, events };
   }
 
-  async enviarMensagem(mensagem, onChunk = null) {
+  async enviarMensagem(mensagem, onChunk = null, signal = null) {
     const result = await this.streamSse(
       "/api/chat",
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mensagem }),
+        signal,
       },
       (conteudo) => {
         if (typeof conteudo === "string" && typeof onChunk === "function") {
@@ -322,6 +323,12 @@ class RositaApiClient {
 
   async limparHistorico() {
     const res = await this.request("/api/limpar", { method: "POST" });
+    if (!res.ok) throw new Error(`Erro HTTP ${res.status}`);
+    return res.json();
+  }
+
+  async obterHistorico() {
+    const res = await this.request("/api/historico");
     if (!res.ok) throw new Error(`Erro HTTP ${res.status}`);
     return res.json();
   }

@@ -1,7 +1,30 @@
 {
   "permissions": {
     "allow": [
-      "Bash(find /c/xampp/htdocs/AGENTE_TCC/backend -name \"requirements.txt\" -exec cat {} \\\\;)"
+      "Bash(find /c/xampp/htdocs/AGENTE_TCC/backend -name \"requirements.txt\" -exec cat {} \\\\;)",
+      "Bash(git -C /Applications/XAMPP/xamppfiles/htdocs/AGENTE_TCC log --oneline -20)",
+      "Bash(xargs ls -la)",
+      "Bash(python3 -c ' *)",
+      "Bash(node --check main.js)",
+      "Bash(node -e ' *)",
+      "Bash(sed -i '' 's/v=20260607a/v=20260607b/g' index.html)",
+      "Bash(node --check scripts/main.js)",
+      "Bash(node --check web/scripts/main.js)",
+      "Bash(node --check web/scripts/api_client.js)",
+      "Bash(python3 -c \"import ast; ast.parse\\(open\\('backend/src/rosita/api/routes.py'\\).read\\(\\)\\); ast.parse\\(open\\('backend/src/rosita/core/agent.py'\\).read\\(\\)\\); ast.parse\\(open\\('backend/src/rosita/app_factory.py'\\).read\\(\\)\\); ast.parse\\(open\\('backend/src/rosita/settings.py'\\).read\\(\\)\\); print\\('Python OK'\\)\")",
+      "Bash(sed -i '' 's/v=20260607b/v=20260607c/g' web/index.html)",
+      "Bash(python3 -c \"import pytest; print\\('pytest', pytest.__version__\\)\")",
+      "Bash(python3 -m unittest discover -s tests -v)",
+      "Bash(pip install *)",
+      "Bash(python3 -m pytest tests/test_history_store.py tests/test_validators.py tests/test_auth_e_api.py -q)",
+      "Bash(python3 -m pytest -q)",
+      "Bash(python3 -c \"import ast; [ast.parse\\(open\\(f\\).read\\(\\)\\) for f in ['backend/app.py','backend/src/rosita/main.py','backend/src/rosita/api/routes.py']]; print\\('Python OK'\\)\")",
+      "Bash(python3 -c \"import sys,logging,tempfile,os; logging.basicConfig\\(level=logging.ERROR\\); sys.path.insert\\(0,'src'\\); os.environ['ROSITA_HISTORY_DB']=tempfile.mktemp\\(suffix='.sqlite3'\\); from rosita.app_factory import create_app; create_app\\(\\); print\\('BOOT OK'\\)\")",
+      "Bash(docker compose *)",
+      "Read(//private/tmp/**)",
+      "Bash(rm -f rosita_cookies.txt)",
+      "Bash(curl -s -c rosita_cookies.txt -X POST http://127.0.0.1:37643/api/auth/login -H \"Content-Type: application/json\" -d '{\"username\":\"admin\",\"password\":\"admin123\"}' -o /dev/null -w \"login HTTP %{http_code}\\\\n\")",
+      "Bash(curl -s -N -b rosita_cookies.txt -X POST http://127.0.0.1:37643/api/chat -H \"Content-Type: application/json\" -d '{\"mensagem\":\"Responda apenas com: funcionando\"}' --max-time 40)"
     ]
   }
 }

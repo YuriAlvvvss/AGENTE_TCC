@@ -1,21 +1,19 @@
-import os
-import sys
-import tempfile
-import unittest
-from pathlib import Path
-from unittest.mock import patch
+"""Testes do núcleo do agente (RositaAgent), sem depender de um servidor Ollama.
 
-from flask import Flask
+Substitui a versão antiga, que mockava `rosita.core.agent.ollama.Client` — uma
+estrutura interna que deixou de existir após a abstração de provedores em
+`rosita.core.ai_client`.
+"""
+
+from pathlib import Path
+
+import pytest
+
+from rosita.core.agent import RositaAgent
+from rosita.settings import Settings
 
 ROOT = Path(__file__).resolve().parents[1]
-SRC_DIR = ROOT / "backend" / "src"
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
 
-from rosita.api.routes import create_api_blueprint
-from rosita.bootstrap import criar_agente
-from rosita.core.agent import RositaAgent
-from rosita.settings import Settings, load_settings
 
 
 class AgentModelSelectionTests(unittest.TestCase):

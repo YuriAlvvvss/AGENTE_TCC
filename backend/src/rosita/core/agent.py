@@ -65,8 +65,7 @@ class RositaAgent:
 
         # Determinar cliente ativo
         self.active_provider = self._get_initial_provider()
-        
-        self.historico: List[Dict[str, str]] = []
+
         self.current_model = self._resolver_modelo_inicial()
         self.is_busy = False
         self.is_downloading = False
@@ -220,8 +219,51 @@ class RositaAgent:
         """Verifica se o provedor atual é Ollama."""
         return isinstance(self._get_active_client(), OllamaClient)
 
-    def processar_pergunta(self, pergunta: str) -> Generator[str, None, None]:
-        """Valida a pergunta, faz streaming da resposta e persiste histórico."""
+    def ativar_modelo_padrao(self) -> str:
+        """Tenta ativar um modelo automaticamente no boot quando nenhum está ativo.
+
+        Para Ollama: usa ``ROSITA_OLLAMA_MODEL`` se estiver instalado; caso
+        contrário, ativa o primeiro modelo instalado. Falhas (servidor
+        indisponível, nenhum modelo instalado) são silenciosas — o chat
+        continua bloqueado até um modelo ficar disponível, e o frontend
+        avisa o usuário. Retorna o modelo ativado (ou "" se nenhum).
+        """
+        if self.current_model:
+            return self.current_model
+
+        try:
+            if not self._is_ollama():
+                return self.current_model
+        except Exception:
+            return self.current_model
+
+        try:
+            instalados = self.listar_modelos_instalados()
+        except Exception:
+            return self.current_model
+
+        if not instalados:
+            return self.current_model
+
+        preferido = (self.settings.ollama_model or "").strip()
+        alvo = preferido if preferido in instalados else instalados[0]
+        try:
+            return self.trocar_modelo(alvo)
+        except Exception:
+            return self.current_model
+
+    def processar_pergunta(
+        self,
+        pergunta: str,
+        historico_previo: List[Dict[str, str]] | None = None,
+    ) -> Generator[str, None, None]:
+        """Faz streaming da resposta usando o histórico prévio do usuário.
+
+        O agente não armazena mais o histórico — ele é mantido por usuário pela
+        camada de rotas (``HistoryStore``) e passado em ``historico_previo``. A
+        persistência da pergunta e da resposta é responsabilidade de quem chama
+        (gravar apenas em caso de sucesso preserva o comportamento anterior).
+        """
         if self.is_busy:
             raise RuntimeError("Agente ocupado processando outra requisição.")
 
@@ -233,12 +275,12 @@ class RositaAgent:
         if not validar_pergunta(pergunta, self.settings.max_input_chars):
             raise ValueError("Mensagem inválida: texto vazio ou acima do limite permitido.")
 
-        self.historico.append({"role": "user", "content": pergunta.strip()})
-        mensagens = [{"role": "system", "content": self.prompt_sistema}] + self.historico[
+        previo = list(historico_previo or [])
+        combinado = previo + [{"role": "user", "content": pergunta.strip()}]
+        mensagens = [{"role": "system", "content": self.prompt_sistema}] + combinado[
             -self.settings.max_history :
         ]
 
-        resposta_completa = ""
         self.is_busy = True
         try:
             client = self._get_active_client()
@@ -254,24 +296,9 @@ class RositaAgent:
                 if isinstance(chunk, dict) and "message" in chunk:
                     conteudo = chunk["message"].get("content", "") or ""
                 if conteudo:
-                    resposta_completa += conteudo
                     yield conteudo
-
-            self.historico.append({"role": "assistant", "content": resposta_completa})
-        except Exception:
-            if self.historico and self.historico[-1].get("role") == "user":
-                self.historico.pop()
-            raise
         finally:
             self.is_busy = False
-
-    def limpar_historico(self) -> None:
-        """Limpa o histórico atual."""
-        self.historico.clear()
-
-    def obter_historico(self) -> List[Dict[str, str]]:
-        """Retorna uma cópia superficial do histórico."""
-        return list(self.historico)
 
     def obter_modelo_atual(self) -> str:
         """Retorna o nome do modelo atual do agente."""
@@ -293,6 +320,26 @@ class RositaAgent:
     def obter_modelos_recomendados(self) -> List[Dict[str, str]]:
         """Retorna uma lista curta de modelos recomendados para instalação."""
         return list(RECOMMENDED_MODELS)
+
+    def verificar_provedor(self) -> Dict[str, Any]:
+        """Sonda a conectividade real com o provedor de IA ativo.
+
+        Tenta listar os modelos (chamada de rede ao provedor). Serve de
+        healthcheck: ``ok=True`` indica que o provedor está acessível.
+        """
+        info: Dict[str, Any] = {
+            "provedor": self.active_provider,
+            "ok": False,
+            "modelos_disponiveis": 0,
+            "erro": None,
+        }
+        try:
+            modelos = self.listar_modelos_instalados()
+            info["ok"] = True
+            info["modelos_disponiveis"] = len(modelos)
+        except Exception as exc:
+            info["erro"] = str(exc)
+        return info
 
     def obter_provedores_disponiveis(self) -> List[Dict[str, str]]:
         """Retorna lista de provedores disponíveis com status."""

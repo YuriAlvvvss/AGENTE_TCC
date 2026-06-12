@@ -23,6 +23,9 @@ def executar_cli() -> None:
     print("=" * 40)
     print("Digite 'sair' para encerrar.")
 
+    # A CLI mantém o histórico apenas em memória durante a sessão do terminal.
+    historico: list[dict[str, str]] = []
+
     while True:
         pergunta = input("\nVoce: ").strip()
         if pergunta.lower() == "sair":
@@ -31,9 +34,13 @@ def executar_cli() -> None:
 
         print("\nRosita: ", end="", flush=True)
         try:
-            for chunk in agent.processar_pergunta(pergunta):
+            resposta = ""
+            for chunk in agent.processar_pergunta(pergunta, historico):
+                resposta += chunk
                 print(chunk, end="", flush=True)
             print("\n")
+            historico.append({"role": "user", "content": pergunta})
+            historico.append({"role": "assistant", "content": resposta})
         except ValueError as exc:
             print(f"\nAviso: {exc}")
         except Exception as exc:
