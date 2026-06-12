@@ -12,68 +12,11 @@
     .hidden { display: none !important; }
     .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border-width: 0; }
   </style>
-  <link rel="stylesheet" href="/styles/main.css?v=20260602e" />
+  <link rel="stylesheet" href="/styles/main.css?v=20260611b" />
 </head>
 <body>
-  <!-- AUTH VIEW -->
-  <section id="auth-view" class="auth-layout">
-    <div class="auth-background"></div>
-    <div class="auth-card">
-      <div class="auth-header">
-        <div class="auth-logo">
-          <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" class="logo-icon">
-            <circle cx="50" cy="50" r="45" fill="none" stroke="currentColor" stroke-width="2"/>
-            <text x="50" y="65" text-anchor="middle" font-size="40" font-weight="bold" fill="currentColor">R</text>
-          </svg>
-        </div>
-        <h1>ROSITA</h1>
-        <p class="auth-tagline">Assistente Escolar Inteligente</p>
-      </div>
-
-      <form id="login-form" class="auth-form">
-        <div class="form-group">
-          <label for="login-username" class="form-label">Usuário</label>
-          <input
-            id="login-username"
-            type="text"
-            class="form-input"
-            placeholder="Digite seu usuário"
-            autocomplete="username"
-            required
-          />
-        </div>
-
-        <div class="form-group">
-          <label for="login-password" class="form-label">Senha</label>
-          <input
-            id="login-password"
-            type="password"
-            class="form-input"
-            placeholder="Digite sua senha"
-            autocomplete="current-password"
-            required
-          />
-        </div>
-
-        <button id="login-btn" class="btn-primary btn-large" type="submit">
-          Entrar
-        </button>
-      </form>
-
-      <p id="auth-feedback" class="auth-feedback"></p>
-
-      <div class="auth-divider">ou</div>
-
-      <p class="auth-hint">
-        <strong>Teste local:</strong><br />
-        admin / admin123<br />
-        usuario / usuario123
-      </p>
-    </div>
-  </section>
-
   <!-- APP VIEW -->
-  <div id="app-shell" class="app-layout hidden">
+  <div id="app-shell" class="app-layout">
     <!-- SIDEBAR -->
     <aside class="sidebar">
       <div class="sidebar-header">
@@ -114,7 +57,7 @@
           </svg>
           <span class="nav-label">Administração</span>
         </button>
-        <button class="nav-item" id="nav-status" data-section="status" title="Status do Sistema">
+        <button class="nav-item nav-item--admin-only hidden" id="nav-status" data-section="status" title="Status do Sistema">
           <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor">
             <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm3.5-9c.83 0 1.5-.67 1.5-1.5S16.33 8 15.5 8 14 8.67 14 9.5s.67 1.5 1.5 1.5zm-7 0c.83 0 1.5-.67 1.5-1.5S9.33 8 8.5 8 7 8.67 7 9.5 7.67 11 8.5 11zm3.5 6.5c2.33 0 4.31-1.46 5.11-3.5H6.89c.8 2.04 2.78 3.5 5.11 3.5z"/>
           </svg>
@@ -130,7 +73,12 @@
             <div class="user-role" id="user-role">visitante</div>
           </div>
         </div>
-        <button id="logout-btn" class="btn-icon" title="Sair">
+        <button id="admin-login-btn" class="btn-icon" title="Entrar como administrador">
+          <svg viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+          </svg>
+        </button>
+        <button id="logout-btn" class="btn-icon hidden" title="Sair da administração">
           <svg viewBox="0 0 24 24" fill="currentColor">
             <path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h8v-2H4V5z"/>
           </svg>
@@ -166,20 +114,18 @@
         </div>
 
         <div class="chat-main-grid">
-          <div id="chat-container" class="chat-container" role="log" aria-live="polite"></div>
-          <aside class="side-summary-card">
+          <div class="chat-panel">
+            <div id="chat-empty-state" class="chat-empty-state">
+              <h2 class="chat-greeting">Olá, como posso te ajudar hoje?</h2>
+            </div>
+            <div id="chat-container" class="chat-container" role="log" aria-live="polite"></div>
+          </div>
+          <aside id="side-summary-card" class="side-summary-card hidden">
             <h3>Status Admin</h3>
             <p><strong>Provedor Ativo:</strong> <span id="summary-provider">--</span></p>
             <p><strong>Modelo:</strong> <span id="summary-model">--</span></p>
             <p><strong>Último Acesso:</strong> <span id="summary-last-update">--</span></p>
           </aside>
-        </div>
-
-        <div id="quick-actions" class="quick-actions">
-          <button type="button" class="quick-chip">Consultar regimento</button>
-          <button type="button" class="quick-chip">Horários</button>
-          <button type="button" class="quick-chip">Matrícula</button>
-          <button type="button" class="quick-chip">Normas</button>
         </div>
 
         <!-- CHAT INPUT -->
@@ -200,7 +146,7 @@
               type="text"
               id="user-input"
               class="chat-input"
-              placeholder="Digite sua pergunta..."
+              placeholder="Pergunte ao assistente da escola..."
               maxlength="1000"
               aria-label="Digite sua mensagem"
             />
@@ -212,6 +158,7 @@
           </div>
 
           <div class="input-hints">
+            <span class="input-disclaimer">A IA pode cometer erros. Verifique informações importantes no portal oficial da escola.</span>
             <span id="char-count" class="char-count">0/1000</span>
           </div>
         </div>
@@ -493,6 +440,56 @@
     </main>
   </div>
 
+  <!-- ADMIN LOGIN MODAL -->
+  <div id="admin-login-modal" class="admin-login-modal hidden" role="dialog" aria-modal="true" aria-labelledby="admin-login-title">
+    <div id="admin-login-backdrop" class="admin-login-backdrop"></div>
+    <div class="admin-login-card">
+      <div class="auth-header">
+        <div class="auth-logo">
+          <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" class="logo-icon">
+            <circle cx="50" cy="50" r="45" fill="none" stroke="currentColor" stroke-width="2"/>
+            <text x="50" y="65" text-anchor="middle" font-size="40" font-weight="bold" fill="currentColor">R</text>
+          </svg>
+        </div>
+        <h2 id="admin-login-title">Acesso administrativo</h2>
+        <p class="auth-tagline">Entre para gerenciar modelos, referências e configurações</p>
+      </div>
+
+      <form id="login-form" class="auth-form">
+        <div class="form-group">
+          <label for="login-username" class="form-label">Usuário</label>
+          <input
+            id="login-username"
+            type="text"
+            class="form-input"
+            placeholder="Administrador"
+            autocomplete="username"
+            required
+          />
+        </div>
+
+        <div class="form-group">
+          <label for="login-password" class="form-label">Senha</label>
+          <input
+            id="login-password"
+            type="password"
+            class="form-input"
+            placeholder="Digite sua senha"
+            autocomplete="current-password"
+            required
+          />
+        </div>
+
+        <div class="admin-login-actions">
+          <button id="admin-login-cancel" type="button" class="btn-secondary">Cancelar</button>
+          <button id="login-btn" class="btn-primary" type="submit">Entrar</button>
+        </div>
+      </form>
+
+      <p id="auth-feedback" class="auth-feedback"></p>
+    </div>
+  </div>
+
   <!-- LOADING OVERLAY -->
   <div id="loading-overlay" class="loading-overlay hidden" aria-live="polite" aria-busy="true">
     <div class="loading-card">
@@ -511,6 +508,6 @@
     })();
   </script>
   <script src="/scripts/api_client.js?v=20260602e" defer></script>
-  <script src="/scripts/main.js?v=20260602e" defer></script>
+  <script src="/scripts/main.js?v=20260611b" defer></script>
 </body>
 </html>

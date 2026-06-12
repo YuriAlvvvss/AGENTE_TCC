@@ -1,6 +1,9 @@
 class RositaApp {
   constructor() {
-    this.authView = document.getElementById("auth-view");
+    this.authView = document.getElementById("admin-login-modal");
+    this.adminLoginBackdrop = document.getElementById("admin-login-backdrop");
+    this.adminLoginBtn = document.getElementById("admin-login-btn");
+    this.adminLoginCancel = document.getElementById("admin-login-cancel");
     this.appShell = document.getElementById("app-shell");
     this.loginForm = document.getElementById("login-form");
     this.loginUsername = document.getElementById("login-username");
@@ -12,6 +15,7 @@ class RositaApp {
     this.accessHintEl = document.getElementById("access-hint");
     this.logoutBtn = document.getElementById("logout-btn");
     this.chatContainer = document.getElementById("chat-container");
+    this.chatEmptyState = document.getElementById("chat-empty-state");
     this.modelSelectorWrap = document.querySelector(".model-selector");
     this.userInput = document.getElementById("user-input");
     this.sendBtn = document.getElementById("send-btn");
@@ -31,13 +35,14 @@ class RositaApp {
     this.adminTabs = Array.from(document.querySelectorAll(".admin-tab"));
     this.adminPanels = Array.from(document.querySelectorAll(".admin-panel"));
     this.navAdmin = document.getElementById("nav-admin");
+    this.navStatus = document.getElementById("nav-status");
+    this.sideSummaryCard = document.getElementById("side-summary-card");
     this.charCountEl = document.getElementById("char-count");
     this.statusPillEl = document.getElementById("status-pill");
     this.providerPillEl = document.getElementById("provider-pill");
     this.summaryProviderEl = document.getElementById("summary-provider");
     this.summaryModelEl = document.getElementById("summary-model");
     this.summaryLastUpdateEl = document.getElementById("summary-last-update");
-    this.quickActionsEl = document.getElementById("quick-actions");
     this.reloadModelsBtn = document.getElementById("reload-models-btn");
     this.unloadModelBtn = document.getElementById("unload-model-btn");
     this.deleteModelBtn = document.getElementById("delete-model-btn");
@@ -102,6 +107,9 @@ class RositaApp {
       event.preventDefault();
       this.login();
     });
+    this.adminLoginBtn?.addEventListener("click", () => this.showAdminLoginModal());
+    this.adminLoginCancel?.addEventListener("click", () => this.hideAdminLoginModal());
+    this.adminLoginBackdrop?.addEventListener("click", () => this.hideAdminLoginModal());
     this.logoutBtn?.addEventListener("click", () => this.logout());
     this.sendBtn?.addEventListener("click", () => this.enviarMensagem());
     this.clearBtn?.addEventListener("click", () => this.limparChat());
@@ -123,13 +131,6 @@ class RositaApp {
       tab.addEventListener("click", () => this.switchAdminTab(tab.dataset.tab));
     });
     this.userInput?.addEventListener("input", () => this.atualizarContadorCaracteres());
-    this.quickActionsEl?.addEventListener("click", (event) => {
-      const button = event.target.closest(".quick-chip");
-      if (!button || !this.userInput) return;
-      this.userInput.value = button.textContent.trim();
-      this.atualizarContadorCaracteres();
-      this.userInput.focus();
-    });
     this.configFileSelect?.addEventListener("change", () => this.carregarArquivoConfiguracao());
     this.reloadConfigBtn?.addEventListener("click", () => this.carregarArquivosConfiguracao());
     this.saveConfigBtn?.addEventListener("click", () => this.salvarArquivoConfiguracao());
@@ -139,7 +140,7 @@ class RositaApp {
     this.reloadProviderBtn?.addEventListener("click", () => this.carregarConfiguracaoProvedor());
 
     this.userInput?.addEventListener("keypress", (event) => {
-      if (event.key === "Enter" && !this.isAwaitingResponse && this.hasActiveModel && this.session.authenticated) {
+      if (event.key === "Enter" && !this.isAwaitingResponse && this.hasActiveModel) {
         this.enviarMensagem();
       }
     });
@@ -152,20 +153,40 @@ class RositaApp {
   }
 
   async initialize() {
-    this.showLoading("Validando sessão...");
+    this.applySession({ authenticated: false, role: "guest" });
+    this.showLoading("Carregando...");
     try {
       const payload = await window.rositaApi.obterSessao();
-      if (payload?.authenticated) {
+      if (payload?.authenticated && payload.role === "admin") {
         this.applySession(payload);
-        await this.onAuthenticated();
+        await this.onAppReady(true);
       } else {
-        this.showLogin("Faça login para continuar.");
+        if (payload?.authenticated && payload.role !== "admin") {
+          await window.rositaApi.logout().catch(() => {});
+        }
+        await this.onAppReady(false);
       }
     } catch {
-      this.showLogin("Não foi possível validar a sessão neste momento.");
+      await this.onAppReady(false);
     } finally {
       this.hideLoading();
     }
+  }
+
+  isGuest() {
+    return !this.isAdmin();
+  }
+
+  showAdminLoginModal() {
+    this.authView?.classList.remove("hidden");
+    this.setAuthFeedback("");
+    this.loginUsername?.focus();
+  }
+
+  hideAdminLoginModal() {
+    this.authView?.classList.add("hidden");
+    this.loginForm?.reset();
+    this.setAuthFeedback("");
   }
 
   isAdmin() {
@@ -179,65 +200,54 @@ class RositaApp {
   }
 
   applySession(payload = {}) {
-    const role = payload.role || "guest";
-    const authenticated = Boolean(payload.authenticated && ["admin", "user"].includes(role));
+    const role = payload.role === "admin" ? "admin" : "guest";
+    const authenticated = role === "admin";
 
     this.session = {
       authenticated,
       role,
-      username: payload.username || "",
-      displayName: payload.display_name || (role === "admin" ? "Administrador" : role === "user" ? "Usuário" : "Visitante"),
+      username: authenticated ? payload.username || "" : "",
+      displayName: authenticated ? payload.display_name || "Administrador" : "Visitante",
     };
 
-    this.authView?.classList.toggle("hidden", authenticated);
-    this.appShell?.classList.toggle("hidden", !authenticated);
-    if (this.navAdmin) {
-      this.navAdmin.disabled = !this.isAdmin();
-      this.navAdmin.classList.toggle("is-disabled", !this.isAdmin());
-    }
-    if (!this.isAdmin() && this.navAdmin?.classList.contains("nav-item--active")) {
-      this.switchSection("chat");
+    this.navStatus?.classList.toggle("hidden", !this.isAdmin());
+    this.sideSummaryCard?.classList.toggle("hidden", !this.isAdmin());
+    this.adminLoginBtn?.classList.toggle("hidden", this.isAdmin());
+    this.logoutBtn?.classList.toggle("hidden", !this.isAdmin());
+
+    if (!this.isAdmin() && (this.navAdmin?.classList.contains("nav-item--active") || this.navStatus?.classList.contains("nav-item--active"))) {
+      this.switchSection("chat", { force: true });
     }
 
-    const roleLabel = this.isAdmin() ? "Administrador" : authenticated ? "Usuário" : "Visitante";
+    const roleLabel = this.isAdmin() ? "Administrador" : "Visitante";
     if (this.userNameEl) {
-      this.userNameEl.textContent = this.session.displayName || this.session.username || roleLabel;
+      this.userNameEl.textContent = this.session.displayName || roleLabel;
     }
     if (this.userRoleEl) {
       this.userRoleEl.textContent = roleLabel;
     }
     if (this.userAvatarEl) {
       const initial = (this.session.username || roleLabel).charAt(0).toUpperCase();
-      this.userAvatarEl.textContent = initial || "U";
+      this.userAvatarEl.textContent = initial || "V";
     }
 
     if (this.accessHintEl) {
       this.accessHintEl.textContent = this.isAdmin()
-        ? "Acesso total: chat, modelos, referências e hardware."
-        : authenticated
-          ? "Modo usuário: apenas bate-papo com o agente."
-          : "Aguardando autenticação...";
+        ? "Acesso total: modelos, referências e hardware."
+        : "Chat liberado. Entre como administrador para configurar o sistema.";
     }
 
     this.updateControls();
   }
 
-  showLogin(message) {
-    this.stopStatusPolling();
-    this.stopModelPolling();
-    this.applySession({ authenticated: false, role: "guest", username: "" });
-    this.setAuthFeedback(message || "Faça login para continuar.");
-    if (this.statusEl) {
-      this.statusEl.textContent = "Login necessário";
+  async onAppReady(isAdminSession = false) {
+    await this.verificarStatus();
+    this.startStatusPolling();
+    if (isAdminSession) {
+      await this.carregarModelos();
+      await this.carregarArquivosConfiguracao(true);
     }
-    if (this.statusPillEl) {
-      this.statusPillEl.classList.remove("status--online");
-      this.statusPillEl.classList.add("status--offline");
-    }
-    if (this.serverInfoEl) {
-      this.serverInfoEl.textContent = "Entre como administrador ou usuário para acessar a ROSITA.";
-    }
-    this.atualizarSistema({});
+    this.appendWelcomeMessage();
   }
 
   async login() {
@@ -253,12 +263,11 @@ class RositaApp {
     try {
       const payload = await window.rositaApi.login(username, password);
       this.loginForm?.reset();
-      this.chatContainer.innerHTML = "";
-      this.currentTokens = [];
-      this.atualizarTokenStats();
       this.setAuthFeedback("Login realizado com sucesso.");
+      this.hideAdminLoginModal();
       this.applySession(payload);
-      await this.onAuthenticated();
+      await this.onAppReady(true);
+      this.switchSection("admin", { force: true });
     } catch (err) {
       this.setAuthFeedback(err.message || "Falha ao entrar.", true);
     } finally {
@@ -272,45 +281,34 @@ class RositaApp {
       await window.rositaApi.logout();
     } catch (_) {
     } finally {
-      this.chatContainer.innerHTML = "";
-      this.currentTokens = [];
-      this.atualizarTokenStats();
-      this.showLogin("Sessão encerrada com sucesso.");
+      this.hideAdminLoginModal();
+      this.applySession({ authenticated: false, role: "guest" });
+      this.switchSection("chat", { force: true });
+      await this.verificarStatus();
       this.hideLoading();
     }
   }
 
-  async onAuthenticated() {
-    await this.verificarStatus();
-    this.startStatusPolling();
-    if (this.isAdmin()) {
-      await this.carregarModelos();
-      await this.carregarArquivosConfiguracao(true);
-    }
-    this.appendWelcomeMessage();
+  appendWelcomeMessage() {
+    this.updateChatEmptyState();
   }
 
-  appendWelcomeMessage() {
-    if (!this.chatContainer || this.chatContainer.children.length > 0) return;
-    const message = this.isAdmin()
-      ? "Login de administrador ativo. Você pode conversar com a ROSITA e gerenciar as configurações do sistema."
-      : "Login de usuário ativo. Este perfil possui acesso somente ao bate-papo com a ROSITA.";
-    this.adicionarMensagem(message, "assistant");
+  updateChatEmptyState() {
+    const isEmpty = !this.chatContainer || this.chatContainer.children.length === 0;
+    this.chatEmptyState?.classList.toggle("hidden", !isEmpty);
+    this.chatContainer?.classList.toggle("chat-container--has-messages", !isEmpty);
   }
 
   updateControls() {
-    const loggedIn = this.session.authenticated;
     const admin = this.isAdmin();
-    const chatDisabled = !loggedIn || this.isAwaitingResponse || this.isDownloadingModel || !this.hasActiveModel;
+    const chatDisabled = this.isAwaitingResponse || this.isDownloadingModel || !this.hasActiveModel;
     const configDisabled = !admin || this.isAwaitingResponse || this.isDownloadingModel;
 
     if (this.userInput) {
       this.userInput.disabled = chatDisabled;
-      this.userInput.placeholder = !loggedIn
-        ? "Faça login para usar o chat"
-        : this.hasActiveModel
-          ? "Digite sua pergunta..."
-          : "Aguarde um modelo ativo para conversar";
+      this.userInput.placeholder = this.hasActiveModel
+        ? "Pergunte ao assistente da escola..."
+        : "Aguarde um modelo ativo para conversar";
     }
     if (this.sendBtn) {
       this.sendBtn.disabled = chatDisabled;
@@ -331,7 +329,7 @@ class RositaApp {
       this.deleteModelBtn.disabled = !admin || this.isAwaitingResponse || this.isDownloadingModel || !this.hasInstalledModels || !this.modelSelect?.value;
     }
     if (this.clearBtn) {
-      this.clearBtn.disabled = !loggedIn || this.isAwaitingResponse;
+      this.clearBtn.disabled = this.isAwaitingResponse;
     }
     if (this.downloadInput) {
       this.downloadInput.disabled = !admin || this.isAwaitingResponse || this.isDownloadingModel;
@@ -354,9 +352,12 @@ class RositaApp {
     }
   }
 
-  switchSection(sectionName) {
+  switchSection(sectionName, options = {}) {
     if (!sectionName) return;
-    if (sectionName === "admin" && !this.isAdmin()) return;
+    if (!options.force && (sectionName === "admin" || sectionName === "status") && !this.isAdmin()) {
+      this.showAdminLoginModal();
+      return;
+    }
 
     this.navItems.forEach((item) => {
       const active = item.dataset.section === sectionName;
@@ -508,16 +509,11 @@ class RositaApp {
             : `Administrador • Servidor: ${payload.servidor_ia} • Selecione um modelo para começar • ${contexto}`;
         }
         this.atualizarSistema(payload.sistema || {});
-      } else if (payload.role === "user") {
-        if (this.serverInfoEl) {
-          this.serverInfoEl.textContent = payload.modelo_atual
-            ? `Usuário • Chat liberado com o modelo ${payload.modelo_atual}.`
-            : "Usuário • O chat ficará disponível quando um administrador ativar um modelo.";
-        }
-        this.atualizarSistema({});
       } else {
         if (this.serverInfoEl) {
-          this.serverInfoEl.textContent = "Entre com suas credenciais para acessar o sistema.";
+          this.serverInfoEl.textContent = payload.modelo_atual
+            ? `Assistente disponível com o modelo ${payload.modelo_atual}.`
+            : "O chat ficará disponível quando um administrador ativar um modelo.";
         }
         this.atualizarSistema({});
       }
@@ -560,6 +556,7 @@ class RositaApp {
     body.appendChild(meta);
     wrap.appendChild(body);
     this.chatContainer.appendChild(wrap);
+    this.updateChatEmptyState();
     this.chatContainer.scrollTop = this.chatContainer.scrollHeight;
     return content;
   }
@@ -1090,7 +1087,7 @@ class RositaApp {
 
   async enviarMensagem() {
     const texto = (this.userInput.value || "").trim();
-    if (!this.session.authenticated || !texto || this.isAwaitingResponse || !this.hasActiveModel) return;
+    if (!texto || this.isAwaitingResponse || !this.hasActiveModel) return;
 
     this.currentTokens = [];
     this.atualizarTokenStats();
@@ -1118,12 +1115,10 @@ class RositaApp {
   }
 
   async limparChat() {
-    if (!this.session.authenticated) return;
-
     try {
       await window.rositaApi.limparHistorico();
       this.chatContainer.innerHTML = "";
-      this.appendWelcomeMessage();
+      this.updateChatEmptyState();
     } catch (err) {
       this.adicionarMensagem(`Erro ao limpar histórico: ${err.message || String(err)}`, "assistant");
     }
