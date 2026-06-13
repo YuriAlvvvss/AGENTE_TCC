@@ -19,7 +19,7 @@ class RositaApiClient {
     if (typeof window !== "undefined" && window.location) {
       const { protocol, hostname, port } = window.location;
       if (hostname && (protocol === "http:" || protocol === "https:")) {
-        const apiPort = port === "37642" || port === "" ? "37643" : port;
+        const apiPort = port === "18080" || port === "" ? "18500" : port;
         pushCandidate(`${protocol}//${hostname}:${apiPort}`);
       }
     }

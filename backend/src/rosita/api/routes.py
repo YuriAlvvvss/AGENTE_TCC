@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import secrets
 from functools import wraps
 from pathlib import Path
 from typing import Any, Callable, Generator
@@ -152,8 +153,15 @@ def create_api_blueprint(
     api_bp = Blueprint("api", __name__, url_prefix="/api")
 
     def _usuario_atual() -> str:
-        """Identifica o usuário logado para indexar o histórico."""
-        return str(session.get("username") or "").strip()
+        """Identifica o usuário logado ou visitante anônimo para indexar o histórico."""
+        username = str(session.get("username") or "").strip()
+        if username:
+            return username
+        guest_id = session.get("guest_id")
+        if not guest_id:
+            guest_id = secrets.token_hex(16)
+            session["guest_id"] = guest_id
+        return f"guest:{guest_id}"
 
     def _limit(regra: str) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         """Aplica o limite de taxa quando há um limiter disponível."""
@@ -217,7 +225,6 @@ def create_api_blueprint(
 
     @api_bp.route("/chat", methods=["POST"])
     @_limit("20 per minute")
-    @_require_roles("admin", "user")
     def chat() -> Any:
         dados = request.get_json(silent=True)
         if dados is None or not isinstance(dados, dict):

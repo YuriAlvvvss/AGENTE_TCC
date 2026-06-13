@@ -1,16 +1,27 @@
 """Testes do núcleo do agente (RositaAgent), sem depender de um servidor Ollama.
 
-Substitui a versão antiga, que mockava `rosita.core.agent.ollama.Client` — uma
+Substitui a versão antiga, que mockava `rosita.core.ai_client.ollama.Client` — uma
 estrutura interna que deixou de existir após a abstração de provedores em
 `rosita.core.ai_client`.
 """
 
 from pathlib import Path
+import dataclasses
+import os
+import shutil
+import tempfile
+import unittest
+from unittest.mock import patch
 
 import pytest
+from flask import Flask
+from werkzeug.security import generate_password_hash
 
+from rosita.api.routes import create_api_blueprint
+from rosita.bootstrap import criar_agente
 from rosita.core.agent import RositaAgent
-from rosita.settings import Settings
+from rosita.settings import Settings, load_settings
+from rosita.utils.history_store import HistoryStore
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -26,17 +37,26 @@ class AgentModelSelectionTests(unittest.TestCase):
         return Settings(
             base_dir=base_dir,
             data_dir=base_dir / "data",
+            history_db_path=base_dir / "data" / "history.sqlite3",
+            ai_provider="ollama",
             ollama_model=model,
             ollama_host=host,
+            openrouter_api_key="",
+            openrouter_model="",
+            gateway_url="",
+            gateway_model="",
+            gateway_api_key="",
             max_history=5,
             max_input_chars=1000,
             api_host="127.0.0.1",
             api_port=5000,
             debug=False,
             chat_options={},
+            admin_password_hash=generate_password_hash("admin123"),
+            user_password_hash=generate_password_hash("usuario123"),
         )
 
-    @patch("rosita.core.agent.ollama.Client")
+    @patch("rosita.core.ai_client.ollama.Client")
     def test_does_not_auto_select_installed_model_on_startup(self, mock_client):
         mock_client.return_value.list.return_value = {
             "models": [
@@ -49,7 +69,7 @@ class AgentModelSelectionTests(unittest.TestCase):
 
         self.assertEqual(agent.obter_modelo_atual(), "")
 
-    @patch("rosita.core.agent.ollama.Client")
+    @patch("rosita.core.ai_client.ollama.Client")
     def test_keeps_current_model_empty_when_no_model_is_installed(self, mock_client):
         mock_client.return_value.list.return_value = {"models": []}
 
@@ -57,7 +77,7 @@ class AgentModelSelectionTests(unittest.TestCase):
 
         self.assertEqual(agent.obter_modelo_atual(), "")
 
-    @patch("rosita.core.agent.ollama.Client")
+    @patch("rosita.core.ai_client.ollama.Client")
     def test_initializes_ollama_client_with_configured_host(self, mock_client):
         mock_client.return_value.list.return_value = {"models": []}
 
@@ -65,7 +85,7 @@ class AgentModelSelectionTests(unittest.TestCase):
 
         mock_client.assert_called_once_with(host="http://ia-externa:11434")
 
-    @patch("rosita.core.agent.ollama.Client")
+    @patch("rosita.core.ai_client.ollama.Client")
     def test_falls_back_to_positional_client_base_url_when_host_kwarg_is_unsupported(self, mock_client):
         primary_client = unittest.mock.Mock()
         primary_client.list.return_value = {"models": []}
@@ -81,7 +101,7 @@ class AgentModelSelectionTests(unittest.TestCase):
 
         self.assertEqual(mock_client.call_args_list[0], unittest.mock.call(host="http://ia-externa:11434"))
         self.assertEqual(mock_client.call_args_list[1], unittest.mock.call("http://ia-externa:11434"))
-        self.assertIs(agent.client, primary_client)
+        self.assertIs(agent.ollama_client.client, primary_client)
 
     def test_load_settings_prefers_manual_external_ai_server_address(self):
         with patch.dict(
@@ -96,7 +116,7 @@ class AgentModelSelectionTests(unittest.TestCase):
 
         self.assertEqual(settings.ollama_host, "https://meu-servidor-ia.exemplo.com")
 
-    @patch("rosita.core.agent.ollama.Client")
+    @patch("rosita.core.ai_client.ollama.Client")
     def test_agent_preloads_all_text_docs_from_data_folder(self, mock_client):
         mock_client.return_value.list.return_value = {"models": []}
 
@@ -115,26 +135,14 @@ class AgentModelSelectionTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            settings = self.make_settings("")
-            settings = Settings(
-                base_dir=settings.base_dir,
-                data_dir=data_dir,
-                ollama_model=settings.ollama_model,
-                ollama_host=settings.ollama_host,
-                max_history=settings.max_history,
-                max_input_chars=settings.max_input_chars,
-                api_host=settings.api_host,
-                api_port=settings.api_port,
-                debug=settings.debug,
-                chat_options=settings.chat_options,
-            )
+            settings = dataclasses.replace(self.make_settings(""), data_dir=data_dir)
 
             agent = criar_agente(settings)
 
         self.assertIn("Documento A: regimento escolar oficial.", agent.prompt_sistema)
         self.assertIn("Documento B: telefone da secretaria 12345.", agent.prompt_sistema)
 
-    @patch("rosita.core.agent.ollama.Client")
+    @patch("rosita.core.ai_client.ollama.Client")
     def test_agent_recovers_default_references_when_runtime_data_dir_is_empty(self, mock_client):
         mock_client.return_value.list.return_value = {"models": []}
 
@@ -142,19 +150,7 @@ class AgentModelSelectionTests(unittest.TestCase):
             empty_data_dir = Path(tmpdir) / "data"
             empty_data_dir.mkdir()
 
-            settings = self.make_settings("")
-            settings = Settings(
-                base_dir=settings.base_dir,
-                data_dir=empty_data_dir,
-                ollama_model=settings.ollama_model,
-                ollama_host=settings.ollama_host,
-                max_history=settings.max_history,
-                max_input_chars=settings.max_input_chars,
-                api_host=settings.api_host,
-                api_port=settings.api_port,
-                debug=settings.debug,
-                chat_options=settings.chat_options,
-            )
+            settings = dataclasses.replace(self.make_settings(""), data_dir=empty_data_dir)
 
             agent = criar_agente(settings)
 
@@ -162,7 +158,7 @@ class AgentModelSelectionTests(unittest.TestCase):
         self.assertIn("agent_instructions.txt", agent.documentos_contexto)
         self.assertIn("regimento_ECIM.txt", agent.documentos_contexto)
 
-    @patch("rosita.core.agent.ollama.Client")
+    @patch("rosita.core.ai_client.ollama.Client")
     def test_config_files_endpoint_lists_default_txt_files_when_runtime_data_dir_is_empty(self, mock_client):
         mock_client.return_value.list.return_value = {"models": []}
 
@@ -170,19 +166,7 @@ class AgentModelSelectionTests(unittest.TestCase):
             empty_data_dir = Path(tmpdir) / "data"
             empty_data_dir.mkdir()
 
-            settings = self.make_settings("")
-            settings = Settings(
-                base_dir=settings.base_dir,
-                data_dir=empty_data_dir,
-                ollama_model=settings.ollama_model,
-                ollama_host=settings.ollama_host,
-                max_history=settings.max_history,
-                max_input_chars=settings.max_input_chars,
-                api_host=settings.api_host,
-                api_port=settings.api_port,
-                debug=settings.debug,
-                chat_options=settings.chat_options,
-            )
+            settings = dataclasses.replace(self.make_settings(""), data_dir=empty_data_dir)
 
             app = Flask(__name__)
             app.secret_key = "test-secret"
@@ -200,7 +184,7 @@ class AgentModelSelectionTests(unittest.TestCase):
         self.assertIn("agent_instructions.txt", response.get_json()["files"])
         self.assertIn("regimento_ECIM.txt", response.get_json()["files"])
 
-    @patch("rosita.core.agent.ollama.Client")
+    @patch("rosita.core.ai_client.ollama.Client")
     def test_download_model_streams_progress_without_auto_activating_model(self, mock_client):
         client = mock_client.return_value
         client.list.return_value = {"models": []}
@@ -219,10 +203,10 @@ class AgentModelSelectionTests(unittest.TestCase):
         self.assertEqual(agent.obter_modelo_atual(), "")
         self.assertTrue(any(evento["percentual"] == 25 for evento in eventos))
 
-    @patch("rosita.core.agent.subprocess.Popen")
-    @patch("rosita.core.agent.shutil.which", return_value="C:/Users/test/AppData/Local/Programs/Ollama/ollama.exe")
-    @patch("rosita.core.agent.ollama.Client")
-    def test_download_model_starts_local_ollama_when_service_is_not_running(
+    @patch("rosita.core.ai_client.subprocess.Popen")
+    @patch("rosita.core.ai_client.shutil.which", return_value="C:/Users/test/AppData/Local/Programs/Ollama/ollama.exe")
+    @patch("rosita.core.ai_client.ollama.Client")
+    def test_list_models_starts_local_ollama_when_service_is_not_running(
         self,
         mock_client,
         _mock_which,
@@ -230,16 +214,14 @@ class AgentModelSelectionTests(unittest.TestCase):
     ):
         client = mock_client.return_value
         client.list.side_effect = [ConnectionError("offline"), {"models": []}]
-        client.pull.return_value = iter([{"status": "success"}])
 
         agent = RositaAgent(self.make_settings("", host="http://127.0.0.1:11434"), "prompt")
-        eventos = list(agent.baixar_modelo("llama3.2:3b"))
+        modelos = agent.listar_modelos_instalados()
 
         mock_popen.assert_called_once()
-        client.pull.assert_called_once_with(model="llama3.2:3b", stream=True)
-        self.assertTrue(any(evento["percentual"] == 100 for evento in eventos))
+        self.assertEqual(modelos, [])
 
-    @patch("rosita.core.agent.ollama.Client")
+    @patch("rosita.core.ai_client.ollama.Client")
     def test_switching_model_unloads_current_before_loading_next(self, mock_client):
         client = mock_client.return_value
         client.list.return_value = {
@@ -273,7 +255,7 @@ class AgentModelSelectionTests(unittest.TestCase):
             ],
         )
 
-    @patch("rosita.core.agent.ollama.Client")
+    @patch("rosita.core.ai_client.ollama.Client")
     def test_unload_active_model_clears_current_selection(self, mock_client):
         client = mock_client.return_value
         client.list.return_value = {
@@ -296,7 +278,7 @@ class AgentModelSelectionTests(unittest.TestCase):
             keep_alive=0,
         )
 
-    @patch("rosita.core.agent.ollama.Client")
+    @patch("rosita.core.ai_client.ollama.Client")
     def test_delete_model_removes_current_model_and_unloads_it_first(self, mock_client):
         client = mock_client.return_value
         client.list.side_effect = [
@@ -322,7 +304,7 @@ class AgentModelSelectionTests(unittest.TestCase):
             ),
         )
 
-    @patch("rosita.core.agent.ollama.Client")
+    @patch("rosita.core.ai_client.ollama.Client")
     def test_download_model_rejects_empty_name(self, mock_client):
         mock_client.return_value.list.return_value = {"models": []}
         agent = RositaAgent(self.make_settings(""), "prompt")
@@ -330,7 +312,7 @@ class AgentModelSelectionTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             list(agent.baixar_modelo("  "))
 
-    @patch("rosita.core.agent.ollama.Client")
+    @patch("rosita.core.ai_client.ollama.Client")
     def test_config_api_lists_editable_data_files(self, mock_client):
         mock_client.return_value.list.return_value = {"models": []}
 
@@ -341,19 +323,7 @@ class AgentModelSelectionTests(unittest.TestCase):
             (data_dir / "observacoes.md").write_text("Notas", encoding="utf-8")
             (data_dir / "logo.png").write_bytes(b"png")
 
-            settings = self.make_settings("")
-            settings = Settings(
-                base_dir=settings.base_dir,
-                data_dir=data_dir,
-                ollama_model=settings.ollama_model,
-                ollama_host=settings.ollama_host,
-                max_history=settings.max_history,
-                max_input_chars=settings.max_input_chars,
-                api_host=settings.api_host,
-                api_port=settings.api_port,
-                debug=settings.debug,
-                chat_options=settings.chat_options,
-            )
+            settings = dataclasses.replace(self.make_settings(""), data_dir=data_dir)
             agent = criar_agente(settings)
 
             app = Flask(__name__)
@@ -373,7 +343,7 @@ class AgentModelSelectionTests(unittest.TestCase):
         self.assertNotIn("observacoes.md", payload["files"])
         self.assertNotIn("logo.png", payload["files"])
 
-    @patch("rosita.core.agent.ollama.Client")
+    @patch("rosita.core.ai_client.ollama.Client")
     def test_saving_config_file_updates_agent_context(self, mock_client):
         mock_client.return_value.list.return_value = {"models": []}
 
@@ -383,19 +353,7 @@ class AgentModelSelectionTests(unittest.TestCase):
             (data_dir / "regimento_ECIM.txt").write_text("Regimento original", encoding="utf-8")
             (data_dir / "faq.txt").write_text("Conteúdo antigo", encoding="utf-8")
 
-            settings = self.make_settings("")
-            settings = Settings(
-                base_dir=settings.base_dir,
-                data_dir=data_dir,
-                ollama_model=settings.ollama_model,
-                ollama_host=settings.ollama_host,
-                max_history=settings.max_history,
-                max_input_chars=settings.max_input_chars,
-                api_host=settings.api_host,
-                api_port=settings.api_port,
-                debug=settings.debug,
-                chat_options=settings.chat_options,
-            )
+            settings = dataclasses.replace(self.make_settings(""), data_dir=data_dir)
             agent = criar_agente(settings)
 
             app = Flask(__name__)
@@ -418,7 +376,7 @@ class AgentModelSelectionTests(unittest.TestCase):
         self.assertEqual(updated_text, "Conteúdo novo e oficial")
         self.assertIn("Conteúdo novo e oficial", prompt)
 
-    @patch("rosita.core.agent.ollama.Client")
+    @patch("rosita.core.ai_client.ollama.Client")
     def test_status_api_returns_system_and_gpu_summary(self, mock_client):
         mock_client.return_value.list.return_value = {"models": []}
 
@@ -448,7 +406,7 @@ class AgentModelSelectionTests(unittest.TestCase):
         self.assertIn("memoria_usada", payload["sistema"]["gpu"])
         self.assertIn("memoria_percentual", payload["sistema"]["gpu"])
 
-    @patch("rosita.core.agent.ollama.Client")
+    @patch("rosita.core.ai_client.ollama.Client")
     def test_login_endpoint_creates_admin_session(self, mock_client):
         mock_client.return_value.list.return_value = {"models": []}
 
@@ -470,7 +428,7 @@ class AgentModelSelectionTests(unittest.TestCase):
         self.assertEqual(payload["role"], "admin")
         self.assertTrue(payload["authenticated"])
 
-    @patch("rosita.core.agent.ollama.Client")
+    @patch("rosita.core.ai_client.ollama.Client")
     def test_regular_user_login_is_rejected(self, mock_client):
         mock_client.return_value.list.return_value = {"models": []}
 
@@ -491,7 +449,7 @@ class AgentModelSelectionTests(unittest.TestCase):
         payload = login.get_json()
         self.assertIn("administrador", payload["erro"].lower())
 
-    @patch("rosita.core.agent.ollama.Client")
+    @patch("rosita.core.ai_client.ollama.Client")
     def test_guest_cannot_access_admin_settings(self, mock_client):
         mock_client.return_value.list.return_value = {"models": []}
 
@@ -507,7 +465,7 @@ class AgentModelSelectionTests(unittest.TestCase):
 
         self.assertEqual(res.status_code, 401)
 
-    @patch("rosita.core.agent.ollama.Client")
+    @patch("rosita.core.ai_client.ollama.Client")
     def test_guest_status_hides_hardware_snapshot(self, mock_client):
         mock_client.return_value.list.return_value = {"models": []}
 
@@ -526,23 +484,31 @@ class AgentModelSelectionTests(unittest.TestCase):
         self.assertEqual(payload["role"], "guest")
         self.assertNotIn("sistema", payload)
 
-    @patch("rosita.core.agent.ollama.Client")
+    @patch("rosita.core.ai_client.ollama.Client")
     def test_guest_can_clear_chat_history(self, mock_client):
         mock_client.return_value.list.return_value = {"models": []}
 
         settings = self.make_settings("")
         agent = RositaAgent(settings, "prompt")
-        agent.historico.append({"role": "user", "content": "teste"})
 
-        app = Flask(__name__)
-        app.secret_key = "test-secret"
-        app.register_blueprint(create_api_blueprint(agent, settings))
-        client = app.test_client()
+        tmpdir = Path(tempfile.mkdtemp())
+        try:
+            store = HistoryStore(tmpdir / "hist.sqlite3")
+            store.append("guest:visitante", "user", "teste")
 
-        res = client.post("/api/limpar")
+            app = Flask(__name__)
+            app.secret_key = "test-secret"
+            app.register_blueprint(create_api_blueprint(agent, settings, history_store=store))
+            client = app.test_client()
+            with client.session_transaction() as sess:
+                sess["guest_id"] = "visitante"
 
-        self.assertEqual(res.status_code, 200)
-        self.assertEqual(agent.obter_historico(), [])
+            res = client.post("/api/limpar")
+
+            self.assertEqual(res.status_code, 200)
+            self.assertEqual(store.get("guest:visitante"), [])
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 if __name__ == "__main__":

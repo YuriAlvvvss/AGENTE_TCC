@@ -48,49 +48,52 @@ def test_login_campos_faltando(contexto):
     assert resp.status_code == 400
 
 
-def test_chat_exige_autenticacao(contexto):
+def test_chat_liberado_sem_login(contexto):
     app, _ = contexto
     resp = app.test_client().post("/api/chat", json={"mensagem": "oi"})
-    assert resp.status_code == 401
+    assert resp.status_code == 200
+    assert b"[ERRO]" in resp.data or b"[FIM]" in resp.data
 
 
-def test_historico_exige_autenticacao(contexto):
+def test_historico_acessivel_sem_login(contexto):
     app, _ = contexto
-    assert app.test_client().get("/api/historico").status_code == 401
+    resp = app.test_client().get("/api/historico")
+    assert resp.status_code == 200
+    assert resp.get_json()["historico"] == []
 
 
 def test_historico_isolado_por_usuario(contexto):
     app, db_path = contexto
-    # Popula direto no store (sem depender do modelo de IA).
     store = HistoryStore(db_path)
     store.append("admin", "user", "ola do admin")
     store.append("admin", "assistant", "oi admin")
-    store.append("usuario", "user", "ola do usuario")
+    store.append("guest:visitante", "user", "ola do visitante")
 
     ca = app.test_client()
     _login(ca, "admin", "admin123")
-    cu = app.test_client()
-    _login(cu, "usuario", "usuario123")
+    cg = app.test_client()
+    with cg.session_transaction() as sess:
+        sess["guest_id"] = "visitante"
 
     hist_admin = ca.get("/api/historico").get_json()["historico"]
-    hist_user = cu.get("/api/historico").get_json()["historico"]
+    hist_guest = cg.get("/api/historico").get_json()["historico"]
 
     assert [m["content"] for m in hist_admin] == ["ola do admin", "oi admin"]
-    assert [m["content"] for m in hist_user] == ["ola do usuario"]
+    assert [m["content"] for m in hist_guest] == ["ola do visitante"]
 
 
 def test_limpar_afeta_apenas_o_proprio_usuario(contexto):
     app, db_path = contexto
     store = HistoryStore(db_path)
     store.append("admin", "user", "a")
-    store.append("usuario", "user", "b")
+    store.append("guest:visitante", "user", "b")
 
     ca = app.test_client()
     _login(ca, "admin", "admin123")
     assert ca.post("/api/limpar").status_code == 200
 
     assert store.get("admin") == []
-    assert len(store.get("usuario")) == 1
+    assert len(store.get("guest:visitante")) == 1
 
 
 def test_health_e_publico_e_tem_estrutura(contexto):
@@ -105,6 +108,7 @@ def test_health_e_publico_e_tem_estrutura(contexto):
 
 
 def test_rate_limit_no_login(contexto):
+    pytest.importorskip("flask_limiter")
     app, _ = contexto
     client = app.test_client()
     codigos = [
