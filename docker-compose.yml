@@ -60,7 +60,7 @@ services:
       backend:
         condition: service_healthy
     ports:
-      - "${ROSITA_WEB_PORT:-18080}:80"
+      - "${ROSITA_WEB_PORT:-18888}:80"
     networks:
       - rosita_net
 
