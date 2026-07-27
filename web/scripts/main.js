@@ -97,6 +97,7 @@ class RositaApp {
     this.statusTimer = null;
 
     this.bindEvents();
+    this.atualizarContadorCaracteres();
     this.updateControls();
     this.atualizarVisibilidadeProvedor();
     this.initialize();
@@ -469,11 +470,16 @@ class RositaApp {
       }
 
       if (this.statusEl) {
-        this.statusEl.textContent = this.hasActiveModel ? "Online" : "Online • sem modelo ativo";
+        this.statusEl.textContent = this.hasActiveModel ? "Online" : "Online • sem modelo";
       }
       if (this.statusPillEl) {
         this.statusPillEl.classList.remove("status--offline");
         this.statusPillEl.classList.add("status--online");
+      }
+      const statusIndicator = document.getElementById("status-indicator");
+      if (statusIndicator) {
+        statusIndicator.classList.remove("status-indicator--loading");
+        statusIndicator.style.background = "var(--color-online)";
       }
 
       const providerLabel = payload.provedor_ia || payload.servidor_ia || "--";
@@ -524,6 +530,11 @@ class RositaApp {
       if (this.statusPillEl) {
         this.statusPillEl.classList.remove("status--online");
         this.statusPillEl.classList.add("status--offline");
+      }
+      const statusIndicator = document.getElementById("status-indicator");
+      if (statusIndicator) {
+        statusIndicator.classList.remove("status-indicator--loading");
+        statusIndicator.style.background = "var(--color-danger)";
       }
       if (this.serverInfoEl) {
         this.serverInfoEl.textContent = "Não foi possível conectar ao backend.";
