@@ -16,6 +16,7 @@ class RositaApp {
     this.logoutBtn = document.getElementById("logout-btn");
     this.chatContainer = document.getElementById("chat-container");
     this.chatEmptyState = document.getElementById("chat-empty-state");
+    this.chatSection = document.getElementById("chat-section");
     this.modelSelectorWrap = document.querySelector(".model-selector");
     this.userInput = document.getElementById("user-input");
     this.sendBtn = document.getElementById("send-btn");
@@ -296,7 +297,8 @@ class RositaApp {
 
   updateChatEmptyState() {
     const isEmpty = !this.chatContainer || this.chatContainer.children.length === 0;
-    this.chatEmptyState?.classList.toggle("hidden", !isEmpty);
+    this.chatSection?.classList.toggle("chat-empty", isEmpty);
+    this.chatSection?.classList.toggle("chat-active", !isEmpty);
     this.chatContainer?.classList.toggle("chat-container--has-messages", !isEmpty);
   }
 
