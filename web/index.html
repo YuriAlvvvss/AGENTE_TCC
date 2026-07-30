@@ -505,14 +505,7 @@
   </div>
 
   <!-- SCRIPTS -->
-  <script>
-    (function () {
-      var loc = window.location;
-      var port = loc.port || (loc.protocol === "https:" ? "443" : "80");
-      var apiPort = port === "18080" ? "18500" : port;
-      window.ROSITA_API_BASE_URL = loc.protocol + "//" + loc.hostname + ":" + apiPort;
-    })();
-  </script>
+  <script src="/scripts/config.js?v=20260728a" defer></script>
   <script src="/scripts/api_client.js?v=20260602e" defer></script>
   <script src="/scripts/main.js?v=20260728a" defer></script>
 </body>

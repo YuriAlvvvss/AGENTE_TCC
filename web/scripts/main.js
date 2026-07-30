@@ -102,6 +102,17 @@ class RositaApp {
     this.updateControls();
     this.atualizarVisibilidadeProvedor();
     this.initialize();
+    // Pause status polling when the tab is not visible to save requests
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) {
+        this.stopStatusPolling();
+      } else {
+        // resume only if admin (status polling is useful for admin view)
+        if (this.session && this.session.role === "admin") {
+          this.startStatusPolling();
+        }
+      }
+    });
   }
 
   bindEvents() {
@@ -283,6 +294,10 @@ class RositaApp {
       await window.rositaApi.logout();
     } catch (_) {
     } finally {
+      // Ensure we stop any background polling on logout
+      try {
+        this.stopStatusPolling();
+      } catch (_) {}
       this.hideAdminLoginModal();
       this.applySession({ authenticated: false, role: "guest" });
       this.switchSection("chat", { force: true });

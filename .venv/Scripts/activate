@@ -57,6 +57,13 @@ export PATH
 VIRTUAL_ENV_PROMPT='(.venv) '
 export VIRTUAL_ENV_PROMPT
 
+# Load admin password hash from venv if present
+if [ -f "$VIRTUAL_ENV/admin_password.env" ] ; then
+    set -a
+    . "$VIRTUAL_ENV/admin_password.env"
+    set +a
+fi
+
 # unset PYTHONHOME if set
 # this will fail if PYTHONHOME is set to the empty string (which is bad anyway)
 # could use `if (set -u; : $PYTHONHOME) ;` in bash

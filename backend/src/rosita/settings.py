@@ -50,13 +50,16 @@ def _env_bool(name: str, default: bool) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _resolve_password_hash(hash_env: str, plain_env: str, dev_default: str, label: str) -> str:
+def _resolve_password_hash(hash_env: str, plain_env: str, dev_default: str | None, label: str) -> str:
     """Resolve o hash de senha de um perfil.
 
     Ordem de prioridade:
     1. Hash pronto em ``<hash_env>`` (recomendado — gerado uma vez e salvo no .env).
-    2. Senha em texto em ``<plain_env>`` (gera o hash em tempo de execução).
-    3. Senha padrão de desenvolvimento (com aviso — NÃO usar em produção).
+    2. Senha em texto em ``<plain_env>`` (menos seguro — gera o hash em tempo de execução e
+       registra um aviso informando que o hash deve ser definido).
+    3. Se nenhum estiver presente, gera **um hash aleatório temporário** e emite aviso
+       para forçar configuração explícita em produção. Isto evita ter senhas padrão
+       conhecidas no código-fonte (ex.: "admin123").
     """
     hash_value = (os.getenv(hash_env) or "").strip()
     if hash_value:
@@ -64,17 +67,23 @@ def _resolve_password_hash(hash_env: str, plain_env: str, dev_default: str, labe
 
     plain = os.getenv(plain_env)
     if plain:
+        logger.warning(
+            "Senha em texto detectada em %s — gerando hash em tempo de execução. "
+            "Recomenda-se gerar o hash com 'werkzeug.security.generate_password_hash' e definir %s no .env.",
+            plain_env,
+            hash_env,
+        )
         return generate_password_hash(plain)
 
     logger.warning(
         "Senha do perfil '%s' não configurada (%s e %s ausentes). "
-        "Usando senha padrão de desenvolvimento — defina %s no .env antes de publicar.",
+        "Gerando hash temporário; defina %s no .env para uso em produção.",
         label,
         hash_env,
         plain_env,
         hash_env,
     )
-    return generate_password_hash(dev_default)
+    return generate_password_hash(secrets.token_urlsafe(16))
 
 
 def _resolve_secret_key() -> str:
@@ -152,11 +161,11 @@ def load_settings() -> Settings:
         session_cookie_secure=_env_bool("ROSITA_SESSION_COOKIE_SECURE", False),
         admin_username=(os.getenv("ROSITA_ADMIN_USERNAME") or "admin").strip(),
         admin_password_hash=_resolve_password_hash(
-            "ROSITA_ADMIN_PASSWORD_HASH", "ROSITA_ADMIN_PASSWORD", "admin123", "admin"
+            "ROSITA_ADMIN_PASSWORD_HASH", "ROSITA_ADMIN_PASSWORD", None, "admin"
         ),
         user_username=(os.getenv("ROSITA_USER_USERNAME") or "usuario").strip(),
         user_password_hash=_resolve_password_hash(
-            "ROSITA_USER_PASSWORD_HASH", "ROSITA_USER_PASSWORD", "usuario123", "usuario"
+            "ROSITA_USER_PASSWORD_HASH", "ROSITA_USER_PASSWORD", None, "usuario"
         ),
     )
 

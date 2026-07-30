@@ -27,6 +27,13 @@ if not defined _OLD_VIRTUAL_PATH set _OLD_VIRTUAL_PATH=%PATH%
 set "PATH=%VIRTUAL_ENV%\Scripts;%PATH%"
 set "VIRTUAL_ENV_PROMPT=(.venv) "
 
+rem Load admin password hash from %VIRTUAL_ENV%\admin_password.env if present
+if exist "%VIRTUAL_ENV%\admin_password.env" (
+    for /f "usebackq delims=" %%L in ("%VIRTUAL_ENV%\admin_password.env") do (
+        for /f "tokens=1* delims==" %%A in ("%%L") do set "%%A=%%B"
+    )
+)
+
 :END
 if defined _OLD_CODEPAGE (
     "%SystemRoot%\System32\chcp.com" %_OLD_CODEPAGE% > nul

@@ -25,15 +25,15 @@ PASSO 2️⃣  - ACESSAR E TESTAR
 2. Acesse: http://localhost:18080
 3. Faça login:
 
-   USUÁRIO ADMIN (Acesso completo):
-   • Usuario: admin
-   • Senha: admin123
-   • Acesso: Chat + Admin + Status
+  USUÁRIO ADMIN (Acesso completo):
+  • Usuario: <SEU_USUARIO_ADMIN>
+  • Senha: <SUA_SENHA_ADMIN> (configure o hash em `.env`)
+  • Acesso: Chat + Admin + Status
 
-   USUÁRIO COMUM (Chat apenas):
-   • Usuario: usuario
-   • Senha: usuario123
-   • Acesso: Chat apenas
+  USUÁRIO COMUM (Chat apenas):
+  • Usuario: <SEU_USUARIO_COMUM>
+  • Senha: <SUA_SENHA_USUARIO> (configure o hash em `.env`)
+  • Acesso: Chat apenas
 
 4. Teste os recursos:
    ✓ Chat com ROSITA
@@ -76,8 +76,7 @@ Aguarde ver:
   → Status do sistema deve estar verde/conectado
 
 ❌ Admin panel está vazio?
-  → Faça login com: admin / admin123
-  → Não é user comum (usuario/usuario123)
+  → Faça login com suas credenciais de teste (defina via `.env` ou use contas configuradas)
   → Não há modelos: baixe um primeiro
 
 
@@ -91,8 +90,8 @@ Before deployment:
 
 Auth & Login:
   ☐ Página de login aparece com design moderno
-  ☐ Login com admin: admin123 funciona
-  ☐ Login com usuario: usuario123 funciona
+  ☐ Login com admin funciona (credenciais definidas via `.env`)
+  ☐ Login com usuario funciona (credenciais definidas via `.env`)
   ☐ Logout retorna ao login
 
 UI & Navigation:

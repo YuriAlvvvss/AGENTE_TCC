@@ -22,6 +22,7 @@ from rosita.bootstrap import criar_agente
 from rosita.core.agent import RositaAgent
 from rosita.settings import Settings, load_settings
 from rosita.utils.history_store import HistoryStore
+from werkzeug.security import generate_password_hash
 
 ROOT = Path(__file__).resolve().parents[1]
 

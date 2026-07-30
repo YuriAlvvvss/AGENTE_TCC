@@ -49,15 +49,19 @@ bash start_system.sh
 
 1. Abra seu navegador
 2. Acesse: `http://localhost:18080`
-3. Faça login com uma das contas:
+3. Faça login com sua conta de administrador ou usuário.
 
-**Admin** (acesso completo):
-- Usuario: `admin`
-- Senha: `admin123`
+OBS: Não compartilhe credenciais reais no repositório. As credenciais de exemplo
+fornecidas anteriormente foram removidas por motivos de segurança.
 
-**Usuário** (apenas chat):
-- Usuario: `usuario`
-- Senha: `usuario123`
+Para configurar as credenciais, defina as variáveis de ambiente no arquivo `.env`:
+
+- `ROSITA_ADMIN_USERNAME` — nome do usuário admin (ex.: admin)
+- `ROSITA_ADMIN_PASSWORD_HASH` — hash da senha do admin (use Werkzeug para gerar)
+- `ROSITA_USER_USERNAME` — nome do usuário comum (ex.: usuario)
+- `ROSITA_USER_PASSWORD_HASH` — hash da senha do usuário
+
+Veja `.env.example` para o conjunto de variáveis suportadas e instruções de geração de hash.
 
 ---
 
@@ -169,13 +173,13 @@ As mensagens padrão estão em `web/scripts/main.js`:
 ## 🧪 Testes Rápidos
 
 1. **Login Admin**:
-   - Usuário: `admin`
-   - Senha: `admin123`
+   - Usuário: <SEU_USUARIO_ADMIN>
+   - Senha: <SUA_SENHA_ADMIN> (configure o hash em `.env`)
    - Acesso: Chat + Admin + Status
 
 2. **Login Usuário**:
-   - Usuário: `usuario`
-   - Senha: `usuario123`
+   - Usuário: <SEU_USUARIO_COMUM>
+   - Senha: <SUA_SENHA_USUARIO> (configure o hash em `.env`)
    - Acesso: Chat apenas
 
 3. **Funcionalidades para testar**:

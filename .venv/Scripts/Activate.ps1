@@ -219,6 +219,18 @@ deactivate -nondestructive
 # that there is an activated venv.
 $env:VIRTUAL_ENV = $VenvDir
 
+# Load admin password hash from $VenvDir\admin_password.env if present
+$adminEnv = Join-Path -Path $VenvDir -ChildPath 'admin_password.env'
+if (Test-Path $adminEnv) {
+    Get-Content $adminEnv | ForEach-Object {
+        if ($_ -match '^\s*([^=]+)=(.*)$') {
+            $name = $matches[1].Trim()
+            $value = $matches[2]
+            Set-Item -Path Env:\$name -Value $value
+        }
+    }
+}
+
 if (-not $Env:VIRTUAL_ENV_DISABLE_PROMPT) {
 
     Write-Verbose "Setting prompt to '$Prompt'"

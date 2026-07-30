@@ -22,6 +22,10 @@ load_dotenv()
 # A configuração salva pelo painel admin (backend/.env) tem prioridade, para
 # que as credenciais escolhidas na interface persistam entre reinícios.
 load_dotenv(BACKEND_DIR / ".env", override=True)
+# Carrega credenciais locais da venv se presentes. Isso permite usar
+# .venv/admin_password.env para definir usuário e senha local sem precisar
+# modificar o .env principal.
+load_dotenv(BACKEND_DIR.parent / ".venv" / "admin_password.env", override=True)
 
 # Logging estruturado centralizado (nível controlado por ROSITA_DEBUG).
 _debug = os.getenv("ROSITA_DEBUG", "").strip().lower() in {"1", "true", "yes", "on"}
