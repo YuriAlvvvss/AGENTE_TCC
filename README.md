@@ -63,7 +63,6 @@ AGENTE_TCC/
 │       ├── utils/
 │       └── settings.py
 ├── docker-compose.yml
-├── docker-compose.gpu.yml # override opcional para GPU NVIDIA
 ├── web/
 │   ├── index.html
 │   ├── scripts/
@@ -136,18 +135,26 @@ As credenciais e a chave de sessao vem do `.env` (veja `.env.example`):
 # Gere a chave: python -c "import secrets; print(secrets.token_hex(32))"
 ROSITA_SECRET_KEY=
 
+# Nome de usuário dos perfis de acesso.
+ROSITA_ADMIN_USERNAME=ADM
+ROSITA_USER_USERNAME=usuario
+
 # Gere o hash: python -c "from werkzeug.security import generate_password_hash as g; print(g('SUA_SENHA'))"
 ROSITA_ADMIN_PASSWORD_HASH=
 ROSITA_USER_PASSWORD_HASH=
 ```
 
-- As senhas sao verificadas por **hash** (`scrypt`/`werkzeug`), com comparacao de
-  tempo constante (protecao contra timing attack).
-- Se `ROSITA_SECRET_KEY` ficar vazia, uma chave aleatoria e gerada a cada inicio
-  (as sessoes nao persistem entre reinicios) — defina-a em producao.
+- As senhas são verificadas por **hash** (`scrypt`/`werkzeug`), com comparação de
+  tempo constante (proteção contra timing attack).
+- Se `ROSITA_SECRET_KEY` ficar vazia, uma chave aleatória é gerada a cada início
+  (as sessões não persistem entre reinícios) — defina-a em produção.
 - Se os `_HASH` ficarem vazios, aceita-se a senha em texto via
-  `ROSITA_ADMIN_PASSWORD` / `ROSITA_USER_PASSWORD`; na ausencia de ambos, usa-se
-  uma senha **padrao de desenvolvimento** (com aviso no log) — **nao** use em producao.
+  `ROSITA_ADMIN_PASSWORD` / `ROSITA_USER_PASSWORD`; na ausência de ambos, um hash
+  temporário é gerado e o login administrativo fica indisponível por padrão —
+  **não** use isso em produção.
+- Para desenvolvimento local, você também pode definir credenciais em
+  `.venv/admin_password.env`, que será carregado automaticamente ao ativar o
+  ambiente virtual local.
 - `POST /api/auth/login` (10/min) e `POST /api/chat` (20/min) tem limite de taxa.
 
 ## Historico por usuario
@@ -223,6 +230,9 @@ python app.py
 
 ### Web (frontend)
 
+O frontend já é servido pelo Nginx em `web/Dockerfile` ou via `start_system.bat` /
+`start_system.sh`. Para testes locais simples, você também pode usar:
+
 ```bash
 cd web
 python -m http.server 18080
@@ -239,30 +249,27 @@ python agent_cli.py
 ## Deploy com Docker / Coolify
 
 1. copie o arquivo `.env.example` para `.env`;
-2. por padrão, o projeto já sobe com um Ollama interno no próprio `docker-compose`;
-3. se quiser usar um servidor de IA externo, ajuste `ROSITA_OLLAMA_HOST` no `.env`;
+2. por padrão, o projeto usa um provedor de IA externo ou local configurado no `.env`; o `docker-compose.yml` não traz Ollama interno;
+3. se quiser usar um servidor de IA externo, ajuste `ROSITA_OLLAMA_HOST` no `.env` ou use `ROSITA_AI_PROVIDER=gateway`;
 4. para usar OpenRouter, configure `ROSITA_AI_PROVIDER=openrouter`, `ROSITA_OPENROUTER_API_KEY` e `ROSITA_OPENROUTER_MODEL`;
 5. para usar um gateway local (IA rodando no seu servidor), configure `ROSITA_AI_PROVIDER=gateway` e `ROSITA_GATEWAY_URL`;
-6. suba a stack (**não** use `--build`: não há `build` local; só imagens oficiais são puxadas). O `docker-compose.yml` por omissão **não usa GPU** — serve para portáteis e MiniOS sem placa dedicada (Ollama corre em **CPU**, mais lento mas funcional):
+6. suba a stack com o Compose:
 
 ```bash
-docker compose up -d
+docker compose up -d --build
 ```
 
-Só se tiver **placa NVIDIA** e o **NVIDIA Container Toolkit** instalados no host, use opcionalmente o ficheiro extra `docker-compose.gpu.yml`:
+O `docker-compose.yml` padrão não exige GPU e deve funcionar em CPUs mais lentas; o desempenho depende do modelo.
 
-```bash
-docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
-```
+Se você tiver **placa NVIDIA** e o **NVIDIA Container Toolkit** instalado, use um arquivo de override GPU customizado de sua infraestrutura (não há `docker-compose.gpu.yml` incluído neste repositório).
 
 ### MiniOS e erro `overlay` / `invalid argument`
 
-Em MiniOS ou live USB o driver **overlay** do Docker pode falhar ao **criar** contentores (mesmo sem `build` no Compose). Isto **não se corrige** no `docker-compose.yml`. Para continuar a usar **`docker compose`**, ative o driver **`vfs`** no host: `sudo ./scripts/enable-docker-vfs-minios.sh` (detalhes em **`docs/linux_startup.md`**). Alternativa sem Docker: **`./start_system.sh`**.
+Em MiniOS ou live USB, o driver **overlay** do Docker pode falhar ao **criar** contêineres. Esse problema não é resolvido no `docker-compose.yml`. Para continuar usando **`docker compose`**, habilite o driver **`vfs`** no host com `sudo ./scripts/enable-docker-vfs-minios.sh` (detalhes em **`docs/linux_startup.md`**). Alternativa sem Docker: **`./start_system.sh`**.
 
 Serviços padrão:
 - Web: `http://SEU_SERVIDOR:18080`
 - API: `http://SEU_SERVIDOR:18500`
-- Ollama interno: acessível apenas dentro da stack por padrão
 
 Na primeira abertura, se ainda não houver modelo instalado, a própria interface web permite baixar modelos recomendados e acompanhar o progresso em tempo real.
 Nenhum modelo é baixado, ativado ou trocado automaticamente sem ação do usuário.
