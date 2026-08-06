@@ -109,6 +109,22 @@ def test_health_e_publico_e_tem_estrutura(contexto):
     assert (resp.status_code == 200) == dados["ia"]["ok"]
 
 
+def test_api_404_returns_json(contexto):
+    app, _ = contexto
+    resp = app.test_client().get("/api/rota-inexistente")
+    assert resp.status_code == 404
+    assert resp.content_type == "application/json"
+    assert resp.get_json() == {"erro": "Endpoint não encontrado"}
+
+
+def test_api_405_returns_json(contexto):
+    app, _ = contexto
+    resp = app.test_client().put("/api/auth/session")
+    assert resp.status_code == 405
+    assert resp.content_type == "application/json"
+    assert "erro" in resp.get_json()
+
+
 def test_rate_limit_no_login(contexto):
     pytest.importorskip("flask_limiter")
     app, _ = contexto

@@ -5,8 +5,9 @@ from __future__ import annotations
 import logging
 import os
 
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_cors import CORS
+from werkzeug.exceptions import HTTPException
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 from rosita.api.routes import create_api_blueprint
@@ -95,6 +96,24 @@ def create_app() -> Flask:
     @app.get("/")
     def raiz():
         return jsonify({"mensagem": "API ROSITA online"})
+
+    @app.errorhandler(404)
+    def not_found(error):
+        if request.path.startswith("/api/"):
+            return jsonify({"erro": "Endpoint não encontrado"}), 404
+        return error
+
+    @app.errorhandler(405)
+    def method_not_allowed(error):
+        if request.path.startswith("/api/"):
+            return jsonify({"erro": "Método não permitido para este endpoint"}), 405
+        return error
+
+    @app.errorhandler(500)
+    def internal_server_error(error):
+        if request.path.startswith("/api/"):
+            return jsonify({"erro": "Erro interno do servidor"}), 500
+        return error
 
     return app
 

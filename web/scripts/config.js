@@ -6,5 +6,16 @@
 
 window.ROSITA_API_BASE_URL = window.ROSITA_API_BASE_URL || "";
 
+// Fallback for the local development web server on port 18080.
+// The local Python static server does not proxy /api/*, so the frontend
+// must call the backend directly when served at the default dev port.
+if (!window.ROSITA_API_BASE_URL) {
+  const isLocalhost = ["127.0.0.1", "localhost"].includes(window.location.hostname);
+  const isDefaultWebPort = window.location.port === "18080";
+  if (isLocalhost && isDefaultWebPort) {
+    window.ROSITA_API_BASE_URL = `${window.location.protocol}//127.0.0.1:18500`;
+  }
+}
+
 // Default fetch timeout (ms) for non-streaming requests when no signal is provided.
 window.ROSITA_FETCH_TIMEOUT_MS = window.ROSITA_FETCH_TIMEOUT_MS || 15000;

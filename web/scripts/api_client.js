@@ -239,12 +239,14 @@ class RositaApiClient {
 
   async _parseErro(res) {
     let erro = `Erro HTTP ${res.status}`;
-    try {
-      const payload = await res.json();
-      erro = payload.erro || erro;
-    } catch (_) {
-      const text = await res.text();
-      if (text) erro = text;
+    const text = await res.text();
+    if (text) {
+      try {
+        const payload = JSON.parse(text);
+        erro = payload.erro || payload.error || payload.message || erro;
+      } catch (_) {
+        erro = text;
+      }
     }
     return erro;
   }
