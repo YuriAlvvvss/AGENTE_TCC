@@ -1,10 +1,13 @@
 class RositaApp {
+  static SIDEBAR_STORAGE_KEY = "sidebarCollapsed";
+
   constructor() {
     this.authView = document.getElementById("admin-login-modal");
     this.adminLoginBackdrop = document.getElementById("admin-login-backdrop");
     this.adminLoginBtn = document.getElementById("admin-login-btn");
     this.adminLoginCancel = document.getElementById("admin-login-cancel");
     this.appShell = document.getElementById("app-shell");
+    this.sidebarToggleBtn = document.getElementById("sidebar-toggle-btn");
     this.loginForm = document.getElementById("login-form");
     this.loginUsername = document.getElementById("login-username");
     this.loginPassword = document.getElementById("login-password");
@@ -96,7 +99,9 @@ class RositaApp {
     this.configFilesLoaded = false;
     this.providerConfigLoaded = false;
     this.statusTimer = null;
+    this.sidebarCollapsed = false;
 
+    this.initSidebar();
     this.bindEvents();
     this.atualizarContadorCaracteres();
     this.updateControls();
@@ -152,6 +157,14 @@ class RositaApp {
     this.saveProviderBtn?.addEventListener("click", () => this.salvarConfiguracaoProvedor());
     this.reloadProviderBtn?.addEventListener("click", () => this.carregarConfiguracaoProvedor());
 
+    this.sidebarToggleBtn?.addEventListener("click", () => this.toggleSidebar());
+    this.sidebarToggleBtn?.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        this.toggleSidebar();
+      }
+    });
+
     this.userInput?.addEventListener("keypress", (event) => {
       if (event.key === "Enter" && !this.isAwaitingResponse && this.hasActiveModel) {
         this.enviarMensagem();
@@ -163,6 +176,52 @@ class RositaApp {
         this.baixarModelo();
       }
     });
+  }
+
+  initSidebar() {
+    const savedPreference = this.loadSidebarPreference();
+    this.setSidebarCollapsed(savedPreference === true, false);
+  }
+
+  loadSidebarPreference() {
+    try {
+      const stored = localStorage.getItem(RositaApp.SIDEBAR_STORAGE_KEY);
+      if (stored === null) return false;
+      return stored === "true";
+    } catch (error) {
+      console.warn("Não foi possível ler a preferência da sidebar.", error);
+      return false;
+    }
+  }
+
+  saveSidebarPreference(isCollapsed) {
+    try {
+      localStorage.setItem(RositaApp.SIDEBAR_STORAGE_KEY, String(isCollapsed));
+    } catch (error) {
+      console.warn("Não foi possível salvar a preferência da sidebar.", error);
+    }
+  }
+
+  updateSidebarToggleAccessibility() {
+    if (!this.sidebarToggleBtn) return;
+    const expanded = !this.sidebarCollapsed;
+    this.sidebarToggleBtn.setAttribute("aria-expanded", expanded ? "true" : "false");
+    const label = expanded ? "Recolher barra lateral" : "Expandir barra lateral";
+    this.sidebarToggleBtn.setAttribute("aria-label", label);
+    this.sidebarToggleBtn.setAttribute("title", label);
+  }
+
+  setSidebarCollapsed(isCollapsed, persist = true) {
+    this.sidebarCollapsed = Boolean(isCollapsed);
+    this.appShell?.classList.toggle("sidebar-collapsed", this.sidebarCollapsed);
+    this.updateSidebarToggleAccessibility();
+    if (persist) {
+      this.saveSidebarPreference(this.sidebarCollapsed);
+    }
+  }
+
+  toggleSidebar() {
+    this.setSidebarCollapsed(!this.sidebarCollapsed);
   }
 
   async initialize() {
