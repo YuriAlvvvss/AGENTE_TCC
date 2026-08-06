@@ -571,7 +571,7 @@ start_backend() {
 
 start_web() {
   local web_url="http://127.0.0.1:$WEB_PORT/"
-  local web_cmd="cd \"$ROOT_DIR/web\" && export PYTHONUNBUFFERED=1 && \"$VENV_PY\" -m http.server $WEB_PORT"
+  local web_cmd="cd \"$ROOT_DIR\" && export PYTHONUNBUFFERED=1 && export ROSITA_WEB_HOST=127.0.0.1 && export ROSITA_WEB_PORT=$WEB_PORT && export ROSITA_BACKEND_URL=http://127.0.0.1:$BACKEND_PORT && \"$VENV_PY\" -c \"from web.scripts.dev_server import create_app; import os; app=create_app(web_root=r'${ROOT_DIR}/web', backend_url=os.getenv('ROSITA_BACKEND_URL','http://127.0.0.1:18500')); app.run(host=os.getenv('ROSITA_WEB_HOST','127.0.0.1'), port=int(os.getenv('ROSITA_WEB_PORT','18080')), debug=False)\""
 
   if http_check "$web_url"; then
     log "Frontend web já está respondendo em $web_url"
