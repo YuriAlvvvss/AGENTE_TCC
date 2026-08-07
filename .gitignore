@@ -11,3 +11,7 @@ node_modules/
 rosita_history.sqlite3
 backend/rosita_history.sqlite3
 *.sqlite3
+
+.venv/
+
+.venv/
