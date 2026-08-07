@@ -5,6 +5,8 @@ class RositaApp {
     this.adminLoginBtn = document.getElementById("admin-login-btn");
     this.adminLoginCancel = document.getElementById("admin-login-cancel");
     this.appShell = document.getElementById("app-shell");
+    this.sidebarToggle = document.getElementById("sidebar-toggle");
+    this.sidebarCollapsedKey = "sidebarCollapsed";
     this.loginForm = document.getElementById("login-form");
     this.loginUsername = document.getElementById("login-username");
     this.loginPassword = document.getElementById("login-password");
@@ -98,6 +100,7 @@ class RositaApp {
     this.statusTimer = null;
 
     this.bindEvents();
+    this.initializeSidebar();
     this.atualizarContadorCaracteres();
     this.updateControls();
     this.atualizarVisibilidadeProvedor();
@@ -124,6 +127,7 @@ class RositaApp {
     this.adminLoginCancel?.addEventListener("click", () => this.hideAdminLoginModal());
     this.adminLoginBackdrop?.addEventListener("click", () => this.hideAdminLoginModal());
     this.logoutBtn?.addEventListener("click", () => this.logout());
+    this.sidebarToggle?.addEventListener("click", () => this.toggleSidebar());
     this.sendBtn?.addEventListener("click", () => this.enviarMensagem());
     this.clearBtn?.addEventListener("click", () => this.limparChat());
     this.reloadModelsBtn?.addEventListener("click", () => this.carregarModelos());
@@ -188,6 +192,38 @@ class RositaApp {
 
   isGuest() {
     return !this.isAdmin();
+  }
+
+  initializeSidebar() {
+    let stored = null;
+    try {
+      stored = window.localStorage.getItem(this.sidebarCollapsedKey);
+    } catch (error) {
+      console.warn("Não foi possível ler a preferência da sidebar.", error);
+    }
+    if (stored === "true") {
+      this.setSidebarCollapsed(true);
+    }
+  }
+
+  setSidebarCollapsed(isCollapsed) {
+    this.appShell?.classList.toggle("sidebar-collapsed", Boolean(isCollapsed));
+    if (this.sidebarToggle) {
+      this.sidebarToggle.setAttribute("aria-expanded", String(!isCollapsed));
+      const label = isCollapsed ? "Expandir barra lateral" : "Recolher barra lateral";
+      this.sidebarToggle.setAttribute("aria-label", label);
+      this.sidebarToggle.title = label;
+    }
+    try {
+      window.localStorage.setItem(this.sidebarCollapsedKey, String(Boolean(isCollapsed)));
+    } catch (error) {
+      console.warn("Não foi possível salvar a preferência da sidebar.", error);
+    }
+  }
+
+  toggleSidebar() {
+    const isCollapsed = Boolean(this.appShell?.classList.contains("sidebar-collapsed"));
+    this.setSidebarCollapsed(!isCollapsed);
   }
 
   showAdminLoginModal() {

@@ -32,6 +32,7 @@
   --shadow-focus: 0 0 0 3px rgba(124, 58, 237, 0.35);
 
   --sidebar-width: 240px;
+  --sidebar-collapsed-width: 72px;
   --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
@@ -266,7 +267,11 @@ body {
 }
 
 .sidebar-header {
-  padding: 22px 18px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 18px 16px 14px;
 }
 
 .sidebar-logo {
@@ -288,6 +293,46 @@ body {
   font-weight: 700;
   flex-shrink: 0;
   box-shadow: 0 0 20px var(--color-primary-glow);
+}
+
+.sidebar-toggle {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: rgba(124, 58, 237, 0.12);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.sidebar-toggle:hover {
+  background: rgba(124, 58, 237, 0.3);
+  color: var(--color-text);
+  border-color: var(--color-border-strong);
+}
+
+.sidebar-toggle:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+}
+
+.sidebar-toggle svg {
+  width: 18px;
+  height: 18px;
+}
+
+.app-layout.sidebar-collapsed .sidebar-toggle {
+  border-color: var(--color-primary);
+  color: var(--color-primary-light);
+}
+
+.app-layout.sidebar-collapsed .sidebar-toggle svg {
+  transform: rotate(180deg);
 }
 
 .sidebar-app-name {
@@ -435,6 +480,67 @@ body {
   height: 18px;
 }
 
+/* --------------------------------------------------------------------------
+   Sidebar recolhida (sidebar-collapsed)
+   Os textos e rótulos são ocultados em qualquer resolução; os ajustes de
+   largura/layout só valem em telas largas (a sidebar vira barra superior
+   em telas ≤ 900px e mantém esse comportamento).
+   -------------------------------------------------------------------------- */
+
+.app-layout.sidebar-collapsed .sidebar-app-name,
+.app-layout.sidebar-collapsed .sidebar-app-subtitle,
+.app-layout.sidebar-collapsed .nav-label,
+.app-layout.sidebar-collapsed .user-name,
+.app-layout.sidebar-collapsed .user-role {
+  display: none;
+}
+
+.app-layout.sidebar-collapsed .sidebar-logo > div:not(.sidebar-logo-mark),
+.app-layout.sidebar-collapsed .sidebar-user > div:not(.user-avatar) {
+  display: none;
+}
+
+@media (min-width: 901px) {
+  .app-layout.sidebar-collapsed {
+    --sidebar-width: var(--sidebar-collapsed-width);
+  }
+
+  .app-layout.sidebar-collapsed .sidebar-header {
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 12px;
+    padding: 16px 8px 12px;
+  }
+
+  .app-layout.sidebar-collapsed .sidebar-logo {
+    justify-content: center;
+  }
+
+  .app-layout.sidebar-collapsed .sidebar-nav {
+    align-items: center;
+    padding: 8px 6px;
+  }
+
+  .app-layout.sidebar-collapsed .nav-item {
+    justify-content: center;
+    padding: 11px 0;
+    gap: 0;
+  }
+
+  .app-layout.sidebar-collapsed .sidebar-footer {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 8px;
+  }
+
+  .app-layout.sidebar-collapsed .sidebar-user {
+    justify-content: center;
+  }
+}
+
 .main-content {
   flex: 1;
   min-width: 0;
@@ -496,6 +602,14 @@ body {
   padding-bottom: 16px;
 }
 
+/* Título, subtítulo, pill de provedor e badge de status ficam ocultos
+   visualmente na tela do chat (mantidos no DOM — não são removidos).
+   O botão "Limpar" foi movido para a sidebar. */
+#chat-section .section-header,
+#chat-section .chat-top-badges {
+  display: none;
+}
+
 .chat-workspace {
   position: relative;
   flex: 1;
@@ -539,8 +653,8 @@ body {
   align-items: center;
   justify-content: center;
   gap: 28px;
-  width: min(100%, 720px);
-  max-width: 720px;
+  width: min(100%, 840px);
+  max-width: 840px;
   margin: auto;
   padding: 0 16px;
   /* Bloco equilibrado na faixa central da viewport (~40–60%) */
@@ -578,8 +692,9 @@ body {
 
 #chat-section.chat-active .chat-composer-block {
   flex-shrink: 0;
-  width: 100%;
-  margin-top: auto;
+  width: min(100%, 840px);
+  max-width: 840px;
+  margin: auto auto 0;
 }
 
 #chat-section.chat-active .chat-empty-state {
@@ -712,7 +827,7 @@ body {
 }
 
 .chat-greeting {
-  margin: 0;
+  margin: 0 auto;
   max-width: 560px;
   text-align: center;
   font-size: clamp(26px, 4vw, 38px);
