@@ -12,7 +12,7 @@
     .hidden { display: none !important; }
     .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border-width: 0; }
   </style>
-  <link rel="stylesheet" href="/styles/main.css?v=20260728a" />
+  <link rel="stylesheet" href="/styles/main.css?v=20260806c" />
 </head>
 <body>
   <!-- APP VIEW -->
@@ -27,6 +27,18 @@
             <div class="sidebar-app-subtitle">Assistente</div>
           </div>
         </div>
+        <button
+          type="button"
+          id="sidebar-toggle"
+          class="sidebar-toggle"
+          aria-label="Recolher barra lateral"
+          aria-expanded="true"
+          title="Recolher barra lateral"
+        >
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+          </svg>
+        </button>
       </div>
 
       <nav class="sidebar-nav" role="navigation" aria-label="Navegação principal">
@@ -63,6 +75,13 @@
           </svg>
           <span class="nav-label">Status</span>
         </button>
+
+        <button class="nav-item" id="clear-btn" title="Limpar histórico">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-9l-1 1H5v2h14V4z"/>
+          </svg>
+          <span class="nav-label">Limpar</span>
+        </button>
       </nav>
 
       <div class="sidebar-footer">
@@ -97,12 +116,6 @@
           </div>
           <div class="header-tools chat-header-actions">
             <div id="provider-pill" class="provider-pill">Provedor: --</div>
-            <button id="clear-btn" class="btn-secondary" title="Limpar histórico">
-              <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-9l-1 1H5v2h14V4z"/>
-              </svg>
-              Limpar
-            </button>
           </div>
         </div>
 
@@ -505,8 +518,8 @@
   </div>
 
   <!-- SCRIPTS -->
-  <script src="/scripts/config.js?v=20260805a" defer></script>
-  <script src="/scripts/api_client.js?v=20260805a" defer></script>
-  <script src="/scripts/main.js?v=20260805a" defer></script>
+  <script src="/scripts/config.js?v=20260806b" defer></script>
+  <script src="/scripts/api_client.js?v=20260806b" defer></script>
+  <script src="/scripts/main.js?v=20260806b" defer></script>
 </body>
 </html>
