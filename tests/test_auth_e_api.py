@@ -3,6 +3,7 @@
 import pytest
 
 from rosita.app_factory import create_app
+from rosita.settings import load_settings
 from rosita.utils.history_store import HistoryStore
 from werkzeug.security import generate_password_hash
 
@@ -35,6 +36,18 @@ def test_login_sucesso(contexto):
     dados = resp.get_json()
     assert dados["authenticated"] is True
     assert dados["role"] == "admin"
+
+
+def test_load_settings_preserva_hash_entre_aspas_e_dolares(monkeypatch):
+    hash_com_dolares = "scrypt:32768:8:1$abc$def"
+    monkeypatch.setenv("ROSITA_ADMIN_PASSWORD_HASH", f'"{hash_com_dolares}"')
+    monkeypatch.delenv("ROSITA_ADMIN_PASSWORD", raising=False)
+    monkeypatch.delenv("ROSITA_USER_PASSWORD_HASH", raising=False)
+    monkeypatch.delenv("ROSITA_USER_PASSWORD", raising=False)
+
+    settings = load_settings()
+
+    assert settings.admin_password_hash == hash_com_dolares
 
 
 def test_login_senha_errada(contexto):

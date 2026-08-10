@@ -7,10 +7,13 @@ import os
 import secrets
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Final
 
 from werkzeug.security import generate_password_hash
 
 logger = logging.getLogger("rosita.settings")
+
+_DOLLAR_SIGN: Final[str] = "$"
 
 
 @dataclass(frozen=True)
@@ -50,6 +53,13 @@ def _env_bool(name: str, default: bool) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _strip_env_quotes(value: str) -> str:
+    """Remove aspas simples ou duplas de valores lidos do ambiente."""
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {'"', "'"}:
+        return value[1:-1]
+    return value
+
+
 def _resolve_password_hash(hash_env: str, plain_env: str, dev_default: str | None, label: str) -> str:
     """Resolve o hash de senha de um perfil.
 
@@ -61,7 +71,7 @@ def _resolve_password_hash(hash_env: str, plain_env: str, dev_default: str | Non
        para forçar configuração explícita em produção. Isto evita ter senhas padrão
        conhecidas no código-fonte (ex.: "admin123").
     """
-    hash_value = (os.getenv(hash_env) or "").strip()
+    hash_value = _strip_env_quotes((os.getenv(hash_env) or "").strip())
     if hash_value:
         return hash_value
 
