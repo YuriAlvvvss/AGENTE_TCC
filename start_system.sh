@@ -102,6 +102,15 @@ load_env_file() {
     key="${raw_key%%[[:space:]]*}"
     value="${raw_value#"${raw_value%%[![:space:]]*}"}"
 
+    # Remove as aspas externas do valor. Sem isso, algo como
+    # ROSITA_SECRET_KEY="abc" é exportado com as aspas literais.
+    if [[ ${#value} -ge 2 ]]; then
+      case "$value" in
+        \"*\") value="${value:1:${#value}-2}" ;;
+        \'*\') value="${value:1:${#value}-2}" ;;
+      esac
+    fi
+
     if [[ -z "${!key+x}" ]]; then
       export "$key=$value"
     fi

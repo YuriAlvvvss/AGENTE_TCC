@@ -16,11 +16,16 @@ if str(SRC_DIR) not in sys.path:
 from rosita.app_factory import create_app
 from rosita.settings import load_settings
 
-# Carrega .env da raiz do projeto (e opcionalmente backend/.env)
+# Precedência (igual à do docker-compose): variáveis já exportadas no ambiente >
+# .env da raiz > backend/env.admin > backend/env.defaults. Sem override=True o
+# primeiro arquivo que define a chave é quem vale, então a ordem abaixo é do
+# mais específico para o mais genérico.
 load_dotenv(BACKEND_DIR.parent / ".env")
 load_dotenv()
+load_dotenv(BACKEND_DIR / "env.admin")
+load_dotenv(BACKEND_DIR / "env.defaults")
 # A configuração salva pelo painel admin (backend/.env) tem prioridade, para
-# que as credenciais escolhidas na interface persistam entre reinícios.
+# que as escolhas feitas na interface persistam entre reinícios.
 load_dotenv(BACKEND_DIR / ".env", override=True)
 # Carrega credenciais locais da venv se presentes. Isso permite usar
 # .venv/admin_password.env para definir usuário e senha local sem precisar
