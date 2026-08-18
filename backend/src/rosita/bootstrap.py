@@ -78,8 +78,5 @@ def criar_agente(settings: Settings) -> RositaAgent:
         documentos_contexto=documentos_carregados,
     )
 
-    # Tenta deixar um modelo ativo já no boot (ex.: Ollama com ROSITA_OLLAMA_MODEL),
-    # para o chat ficar disponível sem depender de ação manual do administrador.
-    agente.ativar_modelo_padrao()
     return agente
 

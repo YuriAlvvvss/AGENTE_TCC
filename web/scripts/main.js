@@ -47,14 +47,6 @@ class RositaApp {
     this.summaryModelEl = document.getElementById("summary-model");
     this.summaryLastUpdateEl = document.getElementById("summary-last-update");
     this.reloadModelsBtn = document.getElementById("reload-models-btn");
-    this.unloadModelBtn = document.getElementById("unload-model-btn");
-    this.deleteModelBtn = document.getElementById("delete-model-btn");
-    this.downloadInput = document.getElementById("model-download-input");
-    this.downloadBtn = document.getElementById("download-model-btn");
-    this.suggestedModelsEl = document.getElementById("suggested-models");
-    this.downloadProgressWrap = document.getElementById("download-progress-wrap");
-    this.downloadStatusEl = document.getElementById("download-status");
-    this.downloadProgressBar = document.getElementById("download-progress-bar");
     this.loadingOverlay = document.getElementById("loading-overlay");
     this.loadingText = document.getElementById("loading-text");
     this.tokenStatsEl = document.getElementById("token-stats");
@@ -69,7 +61,6 @@ class RositaApp {
     this.providerSelect = document.getElementById("provider-select");
     this.providerStatusLine = document.getElementById("provider-status-line");
     this.providerGroups = Array.from(document.querySelectorAll("[data-provider-group]"));
-    this.ollamaHostInput = document.getElementById("ollama-host-input");
     this.openrouterKeyInput = document.getElementById("openrouter-key-input");
     this.openrouterKeyHint = document.getElementById("openrouter-key-hint");
     this.openrouterModelInput = document.getElementById("openrouter-model-input");
@@ -88,12 +79,10 @@ class RositaApp {
       displayName: "Visitante",
     };
     this.isAwaitingResponse = false;
-    this.isDownloadingModel = false;
     this.hasInstalledModels = false;
     this.hasActiveModel = false;
     this.currentTokens = [];
     this.hasShownEmptyModelsTip = false;
-    this.modelRefreshTimer = null;
     this.selectedConfigFile = "";
     this.configFilesLoaded = false;
     this.providerConfigLoaded = false;
@@ -131,9 +120,6 @@ class RositaApp {
     this.sendBtn?.addEventListener("click", () => this.enviarMensagem());
     this.clearBtn?.addEventListener("click", () => this.limparChat());
     this.reloadModelsBtn?.addEventListener("click", () => this.carregarModelos());
-    this.unloadModelBtn?.addEventListener("click", () => this.descarregarModeloAtual());
-    this.deleteModelBtn?.addEventListener("click", () => this.excluirModeloSelecionado());
-    this.downloadBtn?.addEventListener("click", () => this.baixarModelo());
     this.modelSelect?.addEventListener("change", () => this.selecionarModelo());
     this.modelSelectAdmin?.addEventListener("change", () => {
       if (this.modelSelect && this.modelSelectAdmin) {
@@ -159,12 +145,6 @@ class RositaApp {
     this.userInput?.addEventListener("keypress", (event) => {
       if (event.key === "Enter" && !this.isAwaitingResponse && this.hasActiveModel) {
         this.enviarMensagem();
-      }
-    });
-
-    this.downloadInput?.addEventListener("keypress", (event) => {
-      if (event.key === "Enter" && !this.isDownloadingModel && this.isAdmin()) {
-        this.baixarModelo();
       }
     });
   }
@@ -355,8 +335,8 @@ class RositaApp {
 
   updateControls() {
     const admin = this.isAdmin();
-    const chatDisabled = this.isAwaitingResponse || this.isDownloadingModel || !this.hasActiveModel;
-    const configDisabled = !admin || this.isAwaitingResponse || this.isDownloadingModel;
+    const chatDisabled = this.isAwaitingResponse || !this.hasActiveModel;
+    const configDisabled = !admin || this.isAwaitingResponse;
 
     if (this.userInput) {
       this.userInput.disabled = chatDisabled;
@@ -371,25 +351,13 @@ class RositaApp {
       this.modelSelectorWrap.classList.toggle("hidden", !admin);
     }
     if (this.modelSelect) {
-      this.modelSelect.disabled = !admin || this.isAwaitingResponse || this.isDownloadingModel || !this.hasInstalledModels;
+      this.modelSelect.disabled = !admin || this.isAwaitingResponse || !this.hasInstalledModels;
     }
     if (this.reloadModelsBtn) {
-      this.reloadModelsBtn.disabled = !admin || this.isAwaitingResponse || this.isDownloadingModel;
-    }
-    if (this.unloadModelBtn) {
-      this.unloadModelBtn.disabled = !admin || this.isAwaitingResponse || this.isDownloadingModel || !this.hasActiveModel;
-    }
-    if (this.deleteModelBtn) {
-      this.deleteModelBtn.disabled = !admin || this.isAwaitingResponse || this.isDownloadingModel || !this.hasInstalledModels || !this.modelSelect?.value;
+      this.reloadModelsBtn.disabled = !admin || this.isAwaitingResponse;
     }
     if (this.clearBtn) {
       this.clearBtn.disabled = this.isAwaitingResponse;
-    }
-    if (this.downloadInput) {
-      this.downloadInput.disabled = !admin || this.isAwaitingResponse || this.isDownloadingModel;
-    }
-    if (this.downloadBtn) {
-      this.downloadBtn.disabled = !admin || this.isAwaitingResponse || this.isDownloadingModel;
     }
 
     if (this.configFileSelect) {
@@ -669,53 +637,6 @@ class RositaApp {
     this.loadingOverlay?.classList.add("hidden");
   }
 
-  renderSuggestedModels(models) {
-    if (!this.suggestedModelsEl) return;
-    this.suggestedModelsEl.innerHTML = "";
-    for (const item of models || []) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "suggested-chip";
-      button.title = `${item.description || ""} ${item.size || ""}`.trim();
-      button.textContent = `${item.label || item.name} ${item.size ? `• ${item.size}` : ""}`;
-      button.addEventListener("click", () => {
-        if (!this.downloadInput) return;
-        this.downloadInput.value = item.name;
-        this.downloadInput.focus();
-      });
-      this.suggestedModelsEl.appendChild(button);
-    }
-  }
-
-  setDownloadProgress(percentual, status) {
-    if (!this.downloadProgressWrap || !this.downloadProgressBar || !this.downloadStatusEl) return;
-    this.downloadProgressWrap.classList.remove("hidden");
-    this.downloadProgressBar.style.width = `${Math.max(0, Math.min(100, percentual || 0))}%`;
-    this.downloadStatusEl.textContent = status || "Preparando download...";
-  }
-
-  startModelPolling() {
-    if (this.modelRefreshTimer) return;
-    this.modelRefreshTimer = window.setInterval(() => {
-      if (this.isDownloadingModel) {
-        this.carregarModelos(true);
-      }
-    }, 3000);
-  }
-
-  stopModelPolling() {
-    if (!this.modelRefreshTimer) return;
-    window.clearInterval(this.modelRefreshTimer);
-    this.modelRefreshTimer = null;
-  }
-
-  hideDownloadProgress() {
-    if (!this.downloadProgressWrap || !this.downloadProgressBar || !this.downloadStatusEl) return;
-    this.downloadProgressWrap.classList.add("hidden");
-    this.downloadProgressBar.style.width = "0%";
-    this.downloadStatusEl.textContent = "Preparando download...";
-  }
-
   setConfigStatus(message) {
     if (this.configFileStatusEl) {
       this.configFileStatusEl.textContent = message;
@@ -810,7 +731,7 @@ class RositaApp {
   }
 
   atualizarVisibilidadeProvedor() {
-    const ativo = this.providerSelect?.value || "ollama";
+    const ativo = this.providerSelect?.value || "openrouter";
     this.providerGroups.forEach((group) => {
       const isActive = group.dataset.providerGroup === ativo;
       group.classList.toggle("provider-group--active", isActive);
@@ -840,7 +761,6 @@ class RositaApp {
       if (this.providerSelect && config.ai_provider) {
         this.providerSelect.value = config.ai_provider;
       }
-      if (this.ollamaHostInput) this.ollamaHostInput.value = config.ollama_host || "";
       if (this.openrouterModelInput) this.openrouterModelInput.value = config.openrouter_model || "";
       if (this.gatewayUrlInput) this.gatewayUrlInput.value = config.gateway_url || "";
       if (this.gatewayModelInput) this.gatewayModelInput.value = config.gateway_model || "";
@@ -881,10 +801,9 @@ class RositaApp {
   async salvarConfiguracaoProvedor() {
     if (!this.isAdmin()) return;
 
-    const provedor = this.providerSelect?.value || "ollama";
+    const provedor = this.providerSelect?.value || "openrouter";
     const payload = {
       ai_provider: provedor,
-      ollama_host: (this.ollamaHostInput?.value || "").trim(),
       openrouter_model: (this.openrouterModelInput?.value || "").trim(),
       gateway_url: (this.gatewayUrlInput?.value || "").trim(),
       gateway_model: (this.gatewayModelInput?.value || "").trim(),
@@ -948,14 +867,13 @@ class RositaApp {
     if (!this.isAdmin()) return;
 
     if (!silent) {
-      this.showLoading("Buscando modelos instalados no Ollama...");
+      this.showLoading("Buscando modelos disponíveis no provedor...");
     }
     try {
       const payload = await window.rositaApi.listarModelos();
       const models = payload.models || [];
       const current = payload.current_model || "";
 
-      this.renderSuggestedModels(payload.recommended_models || []);
       const selects = [this.modelSelect, this.modelSelectAdmin].filter(Boolean);
       selects.forEach((select) => {
         select.innerHTML = "";
@@ -1002,23 +920,10 @@ class RositaApp {
 
       if (!models.length && !this.hasShownEmptyModelsTip) {
         this.adicionarMensagem(
-          "Nenhum modelo está instalado ainda. Escolha uma sugestão acima ou informe um nome de modelo para começar.",
+          "Nenhum modelo está disponível no provedor ainda. Verifique a configuração na aba Provedor de IA.",
           "assistant"
         );
         this.hasShownEmptyModelsTip = true;
-      }
-
-      if (payload.downloading) {
-        this.isDownloadingModel = true;
-        this.setDownloadProgress(
-          payload.download_percent || 0,
-          `${payload.download_model || "Modelo"} • ${payload.download_status || "Baixando..."}`
-        );
-        this.startModelPolling();
-      } else {
-        this.isDownloadingModel = false;
-        this.stopModelPolling();
-        this.hideDownloadProgress();
       }
 
       this.updateControls();
@@ -1053,99 +958,6 @@ class RositaApp {
       this.isAwaitingResponse = false;
       this.updateControls();
       this.hideLoading();
-    }
-  }
-
-  async descarregarModeloAtual() {
-    if (!this.isAdmin()) return;
-
-    const model = (this.modelSelect.value || "").trim();
-    if (!model || !this.hasActiveModel) return;
-
-    if (!window.confirm(`Descarregar o modelo ativo ${model}?`)) {
-      return;
-    }
-
-    this.showLoading(`Descarregando ${model}...`);
-    this.isAwaitingResponse = true;
-    this.updateControls();
-    try {
-      await window.rositaApi.descarregarModeloAtual();
-      this.hasActiveModel = false;
-      this.adicionarMensagem(`Modelo descarregado da memória: ${model}.`, "assistant");
-      await this.carregarModelos();
-    } catch (err) {
-      this.adicionarMensagem(`Erro ao descarregar modelo: ${err.message || String(err)}`, "assistant");
-    } finally {
-      this.isAwaitingResponse = false;
-      this.updateControls();
-      this.hideLoading();
-    }
-  }
-
-  async excluirModeloSelecionado() {
-    if (!this.isAdmin()) return;
-
-    const model = (this.modelSelect.value || "").trim();
-    if (!model) return;
-
-    if (!window.confirm(`Excluir o modelo ${model}? Essa ação remove os arquivos baixados do Ollama.`)) {
-      return;
-    }
-
-    this.showLoading(`Excluindo ${model}...`);
-    this.isAwaitingResponse = true;
-    this.updateControls();
-    try {
-      const payload = await window.rositaApi.excluirModelo(model);
-      this.hasActiveModel = Boolean(payload.current_model);
-      this.adicionarMensagem(`Modelo removido com sucesso: ${model}.`, "assistant");
-      await this.carregarModelos();
-    } catch (err) {
-      this.adicionarMensagem(`Erro ao excluir modelo: ${err.message || String(err)}`, "assistant");
-    } finally {
-      this.isAwaitingResponse = false;
-      this.updateControls();
-      this.hideLoading();
-    }
-  }
-
-  async baixarModelo() {
-    if (!this.isAdmin()) return;
-
-    const model = (this.downloadInput.value || "").trim();
-    if (!model || this.isDownloadingModel) return;
-
-    this.isDownloadingModel = true;
-    this.updateControls();
-    this.setDownloadProgress(0, `Iniciando download de ${model}...`);
-    this.adicionarMensagem(
-      `Baixando o modelo ${model}. Isso pode levar alguns minutos na primeira vez.`,
-      "assistant"
-    );
-
-    try {
-      await window.rositaApi.baixarModelo(model, (evento) => {
-        if (!evento || typeof evento !== "object") return;
-        const percentual = Number(evento.percentual || 0);
-        const status = evento.status || "Baixando...";
-        this.setDownloadProgress(percentual, `${model} • ${status}${percentual ? ` (${percentual}%)` : ""}`);
-      });
-
-      this.setDownloadProgress(100, `Modelo ${model} baixado com sucesso.`);
-      this.adicionarMensagem(
-        `Modelo instalado com sucesso: ${model}. Agora selecione esse modelo na lista para ativá-lo.`,
-        "assistant"
-      );
-      await this.carregarModelos();
-    } catch (err) {
-      const errorMessage = err.message || String(err);
-      this.adicionarMensagem(`Erro ao baixar modelo: ${errorMessage}`, "assistant");
-      this.setDownloadProgress(0, `Falha ao baixar ${model}: ${errorMessage}`);
-    } finally {
-      this.isDownloadingModel = false;
-      this.stopModelPolling();
-      this.updateControls();
     }
   }
 

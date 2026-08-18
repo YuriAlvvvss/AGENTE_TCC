@@ -14,6 +14,8 @@ def contexto(tmp_path, monkeypatch):
     db_path = tmp_path / "hist.sqlite3"
     monkeypatch.setenv("ROSITA_HISTORY_DB", str(db_path))
     monkeypatch.setenv("ROSITA_SECRET_KEY", "chave-de-teste")
+    monkeypatch.setenv("ROSITA_AI_PROVIDER", "gateway")
+    monkeypatch.setenv("ROSITA_GATEWAY_URL", "http://teste-local:8000")
     # Set password hashes instead of plaintext passwords for tests
     monkeypatch.setenv("ROSITA_ADMIN_PASSWORD_HASH", generate_password_hash("admin123"))
     monkeypatch.setenv("ROSITA_USER_PASSWORD_HASH", generate_password_hash("usuario123"))

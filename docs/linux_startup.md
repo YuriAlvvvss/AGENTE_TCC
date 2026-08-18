@@ -11,17 +11,16 @@ O fluxo agora está mais estável para ambientes leves, inclusive MiniOS rodando
 3. cria ou reaproveita a pasta do ambiente virtual;
 4. atualiza pip, setuptools e wheel com tentativas de repetição;
 5. instala as dependências do backend;
-6. garante que o Ollama esteja ativo;
-7. verifica a disponibilidade do Ollama e deixa a escolha do modelo para o usuário;
-8. inicia backend e frontend com checagem real de saúde;
-9. grava logs persistentes na pasta de logs do projeto.
+6. valida o provedor de IA configurado (Open Router ou Gateway);
+7. inicia backend e frontend com checagem real de saúde;
+8. grava logs persistentes na pasta de logs do projeto.
 
 ## Requisitos recomendados para MiniOS
 
 - Linux com bash;
 - acesso a sudo ou conta root para instalar dependências;
 - internet na primeira execução;
-- pelo menos 6 GB livres em disco para o modelo padrão;
+- conexão com o provedor de IA escolhido (Open Router ou gateway local);
 - idealmente 8 GB de RAM para o modelo padrão.
 
 > Em máquinas mais limitadas, prefira um modelo menor para maior estabilidade.
@@ -49,7 +48,7 @@ Não use `docker compose up --build` para forçar build desses serviços. GPU é
 
 Se aparecer **mesmo com** `docker compose up -d` (sem build), o problema **não é o repositório**: o motor do Docker (containerd) não consegue montar **overlay** ao preparar a raiz do contentor a partir das camadas da imagem. Isto é frequente em **MiniOS / live USB / VM** ou quando `/var/lib/docker` está num sistema de ficheiros pouco compatível.
 
-**Opção 1 — Recomendada no MiniOS:** não use Docker para a ROSITA; use o arranque nativo (já instala dependências e trata do Ollama):
+**Opção 1 — Recomendada no MiniOS:** não use Docker para a ROSITA; use o arranque nativo (já instala dependências e valida o provedor de IA):
 
 ```bash
 chmod +x start_system.sh
@@ -79,10 +78,10 @@ Resumo: no MiniOS, **`./start_system.sh`** é o caminho mais simples; Docker só
 
 ## Uso recomendado no MiniOS
 
-Se o sistema for mais leve ou tiver pouca RAM, use um modelo menor:
+Configure o provedor de IA no `.env` (Open Router ou gateway) e inicie:
 
 ```bash
-ROSITA_OLLAMA_MODEL=llama3.2:3b ./start_system.sh --yes
+ROSITA_OPENROUTER_API_KEY=sk-or-... ./start_system.sh --yes
 ```
 
 ## Modo somente validação
@@ -109,8 +108,7 @@ Opções principais:
 
 - Backend: http://127.0.0.1:18500
 - Web: http://127.0.0.1:18080
-- Ollama local: http://127.0.0.1:11434
-- ou servidor de IA externo, se configurado no `.env`
+- Provedor de IA conforme configurado no `.env` (Open Router ou gateway)
 
 ## Logs
 
@@ -119,7 +117,6 @@ Os logs agora ficam dentro da pasta do projeto:
 - `logs/startup.log`
 - `logs/backend.log`
 - `logs/web.log`
-- `logs/ollama.log`
 
 ## Encerramento dos serviços
 
@@ -130,7 +127,6 @@ Se estiverem em background:
 ```bash
 pkill -f "app.py"
 pkill -f "http.server 8080"
-pkill -f "ollama serve"
 ```
 
 ## Deploy com Docker Compose / Coolify
@@ -141,10 +137,12 @@ Para publicar no servidor com containers:
 cp .env.example .env
 ```
 
-O padrão já usa o Ollama interno do `docker-compose`. Se preferir apontar para um servidor de IA externo, altere no arquivo `.env`:
+O padrão usa **Open Router** como provedor de IA (nuvem). Se preferir apontar para um gateway local OpenAI-compatible, altere no arquivo `.env`:
 
 ```bash
-ROSITA_OLLAMA_HOST=https://seu-servidor-ia.exemplo.com
+ROSITA_AI_PROVIDER=gateway
+ROSITA_GATEWAY_URL=http://127.0.0.1:8000
+ROSITA_GATEWAY_MODEL=seu-modelo
 ```
 
 Suba a stack (sem `--build`; por omissão **só CPU**, não exige GPU):
@@ -157,7 +155,7 @@ No Coolify, importe o projeto e selecione o `docker-compose.yml` da raiz do repo
 
 Com **placa NVIDIA** e toolkit instalados, pode acrescentar `docker-compose.gpu.yml` (ver `README.md`). Sem GPU, **não** use esse ficheiro. Opcional: `NVIDIA_VISIBLE_DEVICES` no `.env` quando usar o override de GPU.
 
-Após a primeira subida, use o frontend para baixar um modelo recomendado e ativá-lo manualmente, sem precisar entrar no container.
+Após a primeira subida, use o frontend para selecionar um modelo disponível no provedor configurado e ativá-lo manualmente, sem precisar entrar no container.
 Nenhum modelo é baixado ou carregado automaticamente pelo projeto.
 
 ## Ajuste de portas

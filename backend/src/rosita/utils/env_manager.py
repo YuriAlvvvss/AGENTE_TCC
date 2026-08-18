@@ -1,7 +1,7 @@
 """Persistência de credenciais/configuração em um arquivo .env.
 
 Usado pelo painel administrativo para salvar a configuração do provedor de IA
-(Ollama, Open Router ou Gateway custom) de forma que ela sobreviva a reinícios.
+(Open Router ou Gateway custom) de forma que ela sobreviva a reinícios.
 """
 
 from __future__ import annotations
@@ -12,8 +12,6 @@ from typing import Dict, Mapping
 # Chaves gerenciadas pela interface administrativa.
 MANAGED_KEYS = (
     "ROSITA_AI_PROVIDER",
-    "ROSITA_OLLAMA_HOST",
-    "ROSITA_OLLAMA_MODEL",
     "ROSITA_OPENROUTER_API_KEY",
     "ROSITA_OPENROUTER_MODEL",
     "ROSITA_GATEWAY_URL",

@@ -4,7 +4,7 @@ setlocal EnableExtensions EnableDelayedExpansion
 REM ==========================================================
 REM ROSITA - Startup automatico (Windows)
 REM 1) Detecta Python; tenta instalar via winget se ausente
-REM 2) Usa Ollama local ou servidor de IA externo configurado
+REM 2) Valida o provedor de IA configurado (Open Router ou Gateway)
 REM 3) Cria/usa .venv
 REM 4) Instala dependencias
 REM 5) Inicia backend e web em terminais separados
@@ -19,15 +19,13 @@ set "START_LOG=%LOG_DIR%\startup.log"
 set "PY_CMD="
 set "BACKEND_PORT=18500"
 set "WEB_PORT=18080"
-set "OLLAMA_HOST=http://127.0.0.1:11434"
-set "OLLAMA_MODEL="
-set "AI_PROVIDER=ollama"
+set "AI_PROVIDER=openrouter"
 set "OPENROUTER_API_KEY="
 set "OPENROUTER_MODEL="
+set "GATEWAY_URL="
 set "NO_START=0"
 set "SKIP_BROWSER=0"
 set "SHOW_HELP=0"
-set "USE_LOCAL_OLLAMA=1"
 
 call :parse_args %*
 if "%SHOW_HELP%"=="1" goto :show_help_and_exit
@@ -50,15 +48,24 @@ call :log "PASSO 1/7 - OK."
 
 call :log "PASSO 2/7 - Verificando provider de IA..."
 if /I "%AI_PROVIDER%"=="openrouter" goto :step2_openrouter
-call :ensure_ollama
-if errorlevel 1 goto :fatal
-call :log "PASSO 2/7 - OK (Ollama pronto)."
-goto :step3
+if /I "%AI_PROVIDER%"=="gateway" goto :step2_gateway
+call :log_error "ROSITA_AI_PROVIDER invalido: %AI_PROVIDER%. Use 'openrouter' ou 'gateway'."
+goto :fatal
 
 :step2_openrouter
 call :verify_openrouter
 if errorlevel 1 goto :fatal
 call :log "PASSO 2/7 - OK (Open Router configurado)."
+goto :step3
+
+:step2_gateway
+if "%GATEWAY_URL%"=="" (
+    call :log_error "ROSITA_GATEWAY_URL nao configurada."
+    call :log_error "Configure a variavel de ambiente ou no arquivo .env"
+    goto :fatal
+)
+call :log "PASSO 2/7 - OK (Gateway local configurado: %GATEWAY_URL%)."
+goto :step3
 
 :step3
 call :log "PASSO 3/7 - Criando ambiente virtual (.venv) se necessario..."
@@ -135,7 +142,7 @@ echo Provider: %AI_PROVIDER%
 if /I "%AI_PROVIDER%"=="openrouter" (
     echo Model: %OPENROUTER_MODEL%
 ) else (
-    echo Ollama: %OLLAMA_HOST%
+    echo Gateway: %GATEWAY_URL%
 )
 echo Log:     %START_LOG%
 echo ============================================
@@ -176,7 +183,7 @@ echo Provider:      %AI_PROVIDER%
 if /I "%AI_PROVIDER%"=="openrouter" (
     echo Modelo: %OPENROUTER_MODEL%
 ) else (
-    echo Ollama: %OLLAMA_HOST%
+    echo Gateway: %GATEWAY_URL%
     echo Modelos: selecao manual via interface
 )
 echo Log:           %START_LOG%
@@ -224,91 +231,9 @@ exit /b 0
 if defined ROSITA_API_PORT set "BACKEND_PORT=%ROSITA_API_PORT%"
 if defined ROSITA_WEB_PORT set "WEB_PORT=%ROSITA_WEB_PORT%"
 if defined ROSITA_AI_PROVIDER set "AI_PROVIDER=%ROSITA_AI_PROVIDER%"
-if defined ROSITA_OLLAMA_MODEL set "OLLAMA_MODEL=%ROSITA_OLLAMA_MODEL%"
-if defined ROSITA_OLLAMA_HOST set "OLLAMA_HOST=%ROSITA_OLLAMA_HOST%"
 if defined ROSITA_OPENROUTER_API_KEY set "OPENROUTER_API_KEY=%ROSITA_OPENROUTER_API_KEY%"
 if defined ROSITA_OPENROUTER_MODEL set "OPENROUTER_MODEL=%ROSITA_OPENROUTER_MODEL%"
-
-if /I "%AI_PROVIDER%"=="openrouter" (
-    set "USE_LOCAL_OLLAMA=0"
-) else if /I "%OLLAMA_HOST%"=="http://ollama:11434" (
-    set "OLLAMA_HOST=http://127.0.0.1:11434"
-    set "USE_LOCAL_OLLAMA=1"
-) else if /I "%OLLAMA_HOST%"=="http://localhost:11434" (
-    set "OLLAMA_HOST=http://127.0.0.1:11434"
-    set "USE_LOCAL_OLLAMA=1"
-) else if /I "%OLLAMA_HOST%"=="http://127.0.0.1:11434" (
-    set "USE_LOCAL_OLLAMA=1"
-) else (
-    set "USE_LOCAL_OLLAMA=0"
-)
-exit /b 0
-
-:ensure_ollama
-if "%USE_LOCAL_OLLAMA%"=="0" goto :ensure_ollama_external
-
-where ollama >nul 2>&1
-if errorlevel 1 goto :ensure_ollama_missing
-call :log "Ollama encontrado no sistema."
-goto :ensure_ollama_running
-
-:ensure_ollama_external
-call :log "Servidor de IA externo configurado: %OLLAMA_HOST%"
-call :log "Ollama local nao sera iniciado por este script."
-exit /b 0
-
-:ensure_ollama_missing
-call :log "Ollama nao encontrado no PATH."
-set "INSTALL_OLLAMA="
-set /p INSTALL_OLLAMA="Deseja instalar o Ollama automaticamente agora? (S/N): "
-if /I "!INSTALL_OLLAMA!"=="S" goto :ensure_ollama_install
-if /I "!INSTALL_OLLAMA!"=="Y" goto :ensure_ollama_install
-call :log "Ollama local nao sera usado. O sistema iniciara normalmente."
-call :log "Configure Open Router ou um host externo no painel administrativo, se necessario."
-exit /b 0
-
-:ensure_ollama_install
-call :install_ollama
-if errorlevel 1 exit /b 1
-
-:ensure_ollama_running
-call :log "Verificando se o Ollama esta em execucao (porta 11434)..."
-netstat -ano | findstr /R /C:":11434" >nul
-if errorlevel 1 goto :ensure_ollama_start
-call :log "Ollama ja esta em execucao."
-goto :ensure_ollama_wait
-
-:ensure_ollama_start
-call :log "Ollama instalado, mas nao esta em execucao. Iniciando automaticamente..."
-start "ROSITA Ollama" cmd /k "ollama serve"
-call :sleep_seconds 3
-
-:ensure_ollama_wait
-call :wait_ollama
-if errorlevel 1 goto :ensure_ollama_wait_failed
-call :log "Ollama ativo e respondendo. Nenhum modelo sera carregado automaticamente."
-exit /b 0
-
-:ensure_ollama_wait_failed
-call :log_error "Ollama nao respondeu apos tentativas de inicializacao."
-exit /b 1
-
-:wait_ollama
-set /a OLLAMA_RETRY=0
-:wait_ollama_loop
-set /a OLLAMA_RETRY+=1
-ollama list >nul 2>&1
-if not errorlevel 1 exit /b 0
-if !OLLAMA_RETRY! GEQ 10 exit /b 1
-call :log "Aguardando Ollama iniciar... tentativa !OLLAMA_RETRY!/10"
-call :sleep_seconds 2
-goto :wait_ollama_loop
-
-:sleep_seconds
-set /a _SLEEP_SEC=%~1
-if not defined _SLEEP_SEC set /a _SLEEP_SEC=1
-set /a _SLEEP_PING=_SLEEP_SEC+1
-ping -n !_SLEEP_PING! 127.0.0.1 >nul
+if defined ROSITA_GATEWAY_URL set "GATEWAY_URL=%ROSITA_GATEWAY_URL%"
 exit /b 0
 
 :verify_openrouter
@@ -329,31 +254,12 @@ call :log_error "ROSITA_OPENROUTER_MODEL nao configurada."
 call :log_error "Exemplo: gpt-4-turbo, gpt-3.5-turbo, claude-3-opus, etc"
 exit /b 1
 
-:install_ollama
-call :log "Tentando instalar Ollama via winget..."
-where winget >nul 2>&1
-if errorlevel 1 goto :install_ollama_no_winget
-
-winget install -e --id Ollama.Ollama --accept-package-agreements --accept-source-agreements --silent
-if errorlevel 1 goto :install_ollama_failed
-
-where ollama >nul 2>&1
-if errorlevel 1 goto :install_ollama_not_in_path
-call :log "Ollama instalado com sucesso."
+:sleep_seconds
+set /a _SLEEP_SEC=%~1
+if not defined _SLEEP_SEC set /a _SLEEP_SEC=1
+set /a _SLEEP_PING=_SLEEP_SEC+1
+ping -n !_SLEEP_PING! 127.0.0.1 >nul
 exit /b 0
-
-:install_ollama_no_winget
-call :log_error "winget nao disponivel. Instale o Ollama manualmente e execute novamente."
-exit /b 1
-
-:install_ollama_failed
-call :log_error "Nao foi possivel instalar Ollama automaticamente com winget."
-exit /b 1
-
-:install_ollama_not_in_path
-call :log_error "Ollama foi instalado, mas nao ficou disponivel nesta sessao."
-call :log_error "Feche e abra o terminal, depois rode novamente este script."
-exit /b 1
 
 :detect_python
 set "PY_CMD="
@@ -425,10 +331,9 @@ set "ROSITA_API_HOST=0.0.0.0"
 set "ROSITA_API_PORT=%BACKEND_PORT%"
 set "ROSITA_WEB_PORT=%WEB_PORT%"
 set "ROSITA_AI_PROVIDER=%AI_PROVIDER%"
-set "ROSITA_OLLAMA_HOST=%OLLAMA_HOST%"
-set "ROSITA_OLLAMA_MODEL=%OLLAMA_MODEL%"
 set "ROSITA_OPENROUTER_API_KEY=%OPENROUTER_API_KEY%"
 set "ROSITA_OPENROUTER_MODEL=%OPENROUTER_MODEL%"
+set "ROSITA_GATEWAY_URL=%GATEWAY_URL%"
 exit /b 0
 
 :service_alive

@@ -4,8 +4,9 @@
 # Subir:  docker compose up -d --build
 # Derrubar: docker compose down
 #
-# O provedor de IA é externo (ex.: Ollama no host). Configure no .env:
-#   ROSITA_OLLAMA_HOST=http://host.docker.internal:11434
+# O provedor de IA padrão é o Open Router (nuvem). Configure no .env:
+#   ROSITA_OPENROUTER_API_KEY, ROSITA_OPENROUTER_MODEL
+# Alternativa: gateway local OpenAI-compatible via ROSITA_GATEWAY_URL.
 services:
   backend:
     build:

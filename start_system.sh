@@ -9,7 +9,7 @@ IFS=$'\n\t'
 # 1) valida estrutura do projeto
 # 2) detecta Python 3.8+ e instala dependências de sistema
 # 3) cria/atualiza .venv e instala requirements com retry
-# 4) garante Ollama em execução sem carregar modelos automaticamente
+# 4) valida o provedor de IA configurado (Open Router ou Gateway)
 # 5) inicia backend e frontend com checagem real de saúde
 # ==========================================================
 
@@ -21,15 +21,11 @@ VENV_PY="$VENV_DIR/bin/python"
 START_LOG="$LOG_DIR/startup.log"
 BACKEND_LOG="$LOG_DIR/backend.log"
 WEB_LOG="$LOG_DIR/web.log"
-OLLAMA_LOG="$LOG_DIR/ollama.log"
 BACKEND_PID_FILE="$PID_DIR/backend.pid"
 WEB_PID_FILE="$PID_DIR/web.pid"
-OLLAMA_PID_FILE="$PID_DIR/ollama.pid"
 BACKEND_PORT="${ROSITA_API_PORT:-18500}"
 WEB_PORT="${ROSITA_WEB_PORT:-18080}"
-OLLAMA_MODEL="${ROSITA_OLLAMA_MODEL:-}"
-OLLAMA_HOST="${ROSITA_OLLAMA_HOST:-http://127.0.0.1:11434}"
-USE_LOCAL_OLLAMA=1
+AI_PROVIDER="${ROSITA_AI_PROVIDER:-openrouter}"
 AUTO_YES=0
 SKIP_BROWSER=0
 NO_START=0
@@ -81,11 +77,13 @@ Opções:
 Variáveis úteis:
   ROSITA_API_PORT       porta do backend local (padrão: 18500)
   ROSITA_WEB_PORT       porta do frontend local (padrão: 18080)
-  ROSITA_OLLAMA_HOST    host do Ollama local ou externo
-  ROSITA_OLLAMA_MODEL   modelo Ollama sugerido para seleção manual (opcional)
+  ROSITA_AI_PROVIDER    provedor de IA: "openrouter" (padrão) ou "gateway"
+  ROSITA_OPENROUTER_API_KEY  chave do Open Router (obrigatória para openrouter)
+  ROSITA_OPENROUTER_MODEL    modelo do Open Router (ex.: openai/gpt-4o-mini)
+  ROSITA_GATEWAY_URL    URL base do gateway local OpenAI-compatible
 
 Exemplo leve para MiniOS:
-  ROSITA_OLLAMA_MODEL=llama3.2:3b ./start_system.sh --yes
+  ROSITA_OPENROUTER_API_KEY=sk-or-... ./start_system.sh --yes
 EOF
 }
 
@@ -120,23 +118,34 @@ load_env_file() {
 resolve_runtime_config() {
   BACKEND_PORT="${ROSITA_API_PORT:-18500}"
   WEB_PORT="${ROSITA_WEB_PORT:-18080}"
-  OLLAMA_MODEL="${ROSITA_OLLAMA_MODEL:-}"
-  OLLAMA_HOST="${ROSITA_OLLAMA_HOST:-http://127.0.0.1:11434}"
-
-  case "$OLLAMA_HOST" in
-    http://ollama:11434|http://localhost:11434|http://127.0.0.1:11434)
-      USE_LOCAL_OLLAMA=1
-      OLLAMA_HOST="http://127.0.0.1:11434"
-      ;;
-    *)
-      USE_LOCAL_OLLAMA=0
-      ;;
-  esac
+  AI_PROVIDER="${ROSITA_AI_PROVIDER:-openrouter}"
 
   export ROSITA_API_PORT="$BACKEND_PORT"
   export ROSITA_WEB_PORT="$WEB_PORT"
-  export ROSITA_OLLAMA_HOST="$OLLAMA_HOST"
-  export ROSITA_OLLAMA_MODEL=""
+  export ROSITA_AI_PROVIDER="$AI_PROVIDER"
+}
+
+validate_ai_provider() {
+  case "$AI_PROVIDER" in
+    openrouter)
+      if [[ -z "${ROSITA_OPENROUTER_API_KEY:-}" ]]; then
+        fatal "ROSITA_OPENROUTER_API_KEY não configurada. Configure-a no .env."
+      fi
+      if [[ -z "${ROSITA_OPENROUTER_MODEL:-}" ]]; then
+        fatal "ROSITA_OPENROUTER_MODEL não configurada. Ex.: openai/gpt-4o-mini."
+      fi
+      log "Open Router configurado com sucesso (modelo: ${ROSITA_OPENROUTER_MODEL:-})."
+      ;;
+    gateway)
+      if [[ -z "${ROSITA_GATEWAY_URL:-}" ]]; then
+        fatal "ROSITA_GATEWAY_URL não configurada. Configure-a no .env."
+      fi
+      log "Gateway local configurado: ${ROSITA_GATEWAY_URL}"
+      ;;
+    *)
+      fatal "ROSITA_AI_PROVIDER inválido: $AI_PROVIDER. Use 'openrouter' ou 'gateway'."
+      ;;
+  esac
 }
 
 parse_args() {
@@ -333,19 +342,6 @@ ensure_free_space_gb() {
   log "Espaço livre verificado: ${available_gb}GB disponíveis."
 }
 
-wait_for_ollama() {
-  local retries=0
-  while (( retries < 20 )); do
-    if ollama list >/dev/null 2>&1; then
-      return 0
-    fi
-    retries=$((retries + 1))
-    log "Aguardando Ollama iniciar... tentativa $retries/20"
-    sleep 2
-  done
-  return 1
-}
-
 http_check() {
   local url="$1"
 
@@ -401,85 +397,6 @@ port_in_use() {
   fi
 
   return 1
-}
-
-install_ollama() {
-  local pkg_mgr
-  pkg_mgr="$(detect_pkg_manager)"
-
-  if ! command_exists curl; then
-    if [[ -n "$pkg_mgr" ]]; then
-      log "curl não encontrado. Instalando dependências de rede..."
-      case "$pkg_mgr" in
-        apt) install_packages "$pkg_mgr" curl ca-certificates ;;
-        dnf) install_packages "$pkg_mgr" curl ca-certificates ;;
-        yum) install_packages "$pkg_mgr" curl ca-certificates ;;
-        pacman) install_packages "$pkg_mgr" curl ca-certificates ;;
-        zypper) install_packages "$pkg_mgr" curl ca-certificates ;;
-        apk) install_packages "$pkg_mgr" curl ca-certificates ;;
-      esac
-    fi
-  fi
-
-  command_exists curl || fatal "curl é obrigatório para instalar o Ollama automaticamente."
-
-  log "Tentando instalar Ollama via script oficial..."
-  curl -fsSL https://ollama.com/install.sh | sh
-}
-
-ensure_ollama_model() {
-  local installed_models
-  installed_models="$(ollama list 2>/dev/null | awk 'NR>1 {print $1}')"
-
-  export ROSITA_OLLAMA_MODEL=""
-
-  if [[ -n "$installed_models" ]]; then
-    log "Modelos Ollama detectados no servidor. Nenhum será carregado automaticamente; a ativação será manual pela interface."
-  else
-    log_warn "Nenhum modelo Ollama instalado foi encontrado. O download deverá ser feito manualmente pela interface."
-  fi
-
-  if [[ -n "$OLLAMA_MODEL" ]]; then
-    log "Modelo preferido informado em ROSITA_OLLAMA_MODEL: $OLLAMA_MODEL"
-    log "Essa configuração será apenas sugestiva; o projeto não fará download nem carregamento automático."
-  fi
-}
-
-ensure_ollama() {
-  if (( USE_LOCAL_OLLAMA == 0 )); then
-    log "Servidor de IA externo configurado: $OLLAMA_HOST"
-    log "Ollama local não será iniciado por este script."
-    return 0
-  fi
-
-  if ! command_exists ollama; then
-    log_warn "Ollama não encontrado no PATH."
-    if ask_yes_no "Deseja instalar o Ollama automaticamente agora?"; then
-      install_ollama || return 1
-    else
-      log_error "Ollama é obrigatório para o projeto."
-      return 1
-    fi
-  else
-    log "Ollama encontrado no sistema."
-  fi
-
-  log "Verificando se o Ollama está em execução..."
-  if ! ollama list >/dev/null 2>&1; then
-    log "Ollama instalado, mas parado. Iniciando serviço local..."
-    nohup ollama serve >"$OLLAMA_LOG" 2>&1 &
-    echo $! > "$OLLAMA_PID_FILE"
-  else
-    log "Ollama já está em execução."
-  fi
-
-  wait_for_ollama || {
-    log_error "Ollama não respondeu após as tentativas de inicialização."
-    return 1
-  }
-
-  ensure_ollama_model || return 1
-  log "Ollama ativo e pronto para uso."
 }
 
 validate_structure() {
@@ -552,7 +469,7 @@ prepare_virtualenv() {
 
 start_backend() {
   local backend_url="http://127.0.0.1:$BACKEND_PORT/"
-  local backend_cmd="cd \"$ROOT_DIR/backend\" && export PYTHONUNBUFFERED=1 && export ROSITA_API_HOST=127.0.0.1 && export ROSITA_API_PORT=$BACKEND_PORT && export ROSITA_OLLAMA_HOST=$OLLAMA_HOST && export ROSITA_OLLAMA_MODEL= && \"$VENV_PY\" app.py"
+  local backend_cmd="cd \"$ROOT_DIR/backend\" && export PYTHONUNBUFFERED=1 && export ROSITA_API_HOST=127.0.0.1 && export ROSITA_API_PORT=$BACKEND_PORT && \"$VENV_PY\" app.py"
 
   if http_check "$backend_url"; then
     log "Backend já está respondendo em $backend_url"
@@ -637,7 +554,7 @@ main() {
   log "Logs em: $LOG_DIR"
   log "Porta backend local: $BACKEND_PORT"
   log "Porta frontend local: $WEB_PORT"
-  log "Servidor de IA configurado: $OLLAMA_HOST"
+  log "Provedor de IA configurado: $AI_PROVIDER"
   log "============================================================"
 
   log "PASSO 1/6 - Validando estrutura mínima do projeto..."
@@ -652,8 +569,8 @@ main() {
   prepare_virtualenv || fatal "Falha ao preparar o ambiente virtual ou instalar dependências."
   log "PASSO 3/6 - OK."
 
-  log "PASSO 4/6 - Verificando Ollama e disponibilidade de modelos..."
-  ensure_ollama || fatal "Falha ao configurar o Ollama."
+  log "PASSO 4/6 - Verificando provedor de IA configurado..."
+  validate_ai_provider || fatal "Falha ao configurar o provedor de IA."
   log "PASSO 4/6 - OK."
 
   if (( NO_START == 1 )); then
@@ -664,7 +581,7 @@ main() {
 Dependências validadas com sucesso.
 Backend configurado na porta: $BACKEND_PORT
 Web configurada na porta:     $WEB_PORT
-Servidor de IA:               $OLLAMA_HOST
+Provedor de IA:               $AI_PROVIDER
 Modelos:                      seleção manual via interface
 Logs:                         $LOG_DIR
 ============================================
@@ -686,7 +603,7 @@ EOF
 Sistema iniciado com sucesso.
 Backend: http://127.0.0.1:$BACKEND_PORT
 Web:     http://127.0.0.1:$WEB_PORT
-IA:      $OLLAMA_HOST
+IA:      $AI_PROVIDER
 Modelo:  seleção manual via interface
 Logs:    $LOG_DIR
 ============================================

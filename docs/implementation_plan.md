@@ -4,8 +4,8 @@ Objetivo: operar a ROSITA exclusivamente pelo frontend, sem executar `agent_cli.
 
 ## Fase 1 - Estabilizar backend para consumo web
 
-- Definir `.env` para configuracoes (`ROSITA_API_HOST`, `ROSITA_API_PORT`, `ROSITA_OLLAMA_MODEL`).
-- Suportar multiplos provedores de IA via `ROSITA_AI_PROVIDER` (`ollama`, `openrouter`, `gateway`).
+- Definir `.env` para configuracoes (`ROSITA_API_HOST`, `ROSITA_API_PORT`, `ROSITA_OPENROUTER_MODEL`).
+- Suportar provedores de IA via `ROSITA_AI_PROVIDER` (`openrouter`, `gateway`).
 - Variaveis por provedor: `ROSITA_OPENROUTER_API_KEY`, `ROSITA_OPENROUTER_MODEL`, `ROSITA_GATEWAY_URL`, `ROSITA_GATEWAY_MODEL`.
 - Garantir health checks (`/` e `/api/status`) para monitoramento.
 - Fixar contrato da API (`/api/chat`, `/api/historico`, `/api/limpar`, `/api/provedores`).

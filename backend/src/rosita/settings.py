@@ -24,8 +24,6 @@ class Settings:
     data_dir: Path
     history_db_path: Path
     ai_provider: str
-    ollama_model: str
-    ollama_host: str
     openrouter_api_key: str
     openrouter_model: str
     gateway_url: str
@@ -129,12 +127,6 @@ def load_settings() -> Settings:
     else:
         bundled_data_dir = bundled_data_dir.resolve()
 
-    ollama_host = (
-        os.getenv("ROSITA_OLLAMA_HOST")
-        or os.getenv("ROSITA_AI_SERVER_URL")
-        or "http://127.0.0.1:11434"
-    ).strip().rstrip("/")
-
     history_db_path = Path(
         os.getenv("ROSITA_HISTORY_DB", str(backend_dir / "rosita_history.sqlite3"))
     ).expanduser()
@@ -147,9 +139,7 @@ def load_settings() -> Settings:
         base_dir=backend_dir,
         data_dir=data_dir,
         history_db_path=history_db_path,
-        ai_provider=(os.getenv("ROSITA_AI_PROVIDER") or "ollama").strip().lower(),
-        ollama_model=(os.getenv("ROSITA_OLLAMA_MODEL") or "").strip(),
-        ollama_host=ollama_host,
+        ai_provider=(os.getenv("ROSITA_AI_PROVIDER") or "openrouter").strip().lower(),
         openrouter_api_key=(os.getenv("ROSITA_OPENROUTER_API_KEY") or "").strip(),
         openrouter_model=(os.getenv("ROSITA_OPENROUTER_MODEL") or "").strip(),
         gateway_url=(os.getenv("ROSITA_GATEWAY_URL") or "").strip().rstrip("/"),

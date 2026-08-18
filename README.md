@@ -1,8 +1,7 @@
 # ROSITA - Assistente Escolar
 
 Projeto Python com backend Flask e frontend web, com suporte a provedores de IA:
-- Ollama (local ou externo)
-- OpenRouter (API)
+- OpenRouter (API, nuvem) — provedor padrão
 - Gateway local (servidor OpenAI-compatible na sua rede)
 
 A ROSITA é um assistente que responde dúvidas sobre o regimento e os procedimentos
@@ -28,11 +27,11 @@ da escola, baseando-se na documentação oficial carregada em memória.
 └──────────────┬───────────────┘
                │
    ┌───────────┼───────────┐
-   ▼           ▼           ▼
-┌────────┐ ┌──────────┐ ┌──────────┐
-│ Ollama │ │OpenRouter│ │ Gateway  │
-│ (local)│ │ (nuvem)  │ │ (custom) │
-└────────┘ └──────────┘ └──────────┘
+   ▼           ▼
+┌──────────┐ ┌──────────┐
+│OpenRouter│ │ Gateway  │
+│ (nuvem)  │ │ (custom) │
+└──────────┘ └──────────┘
 ```
 
 ## Principais recursos
@@ -58,7 +57,7 @@ AGENTE_TCC/
 │   │   ├── agent_instructions.txt
 │   │   └── regimento_ECIM.txt
 │   └── src/rosita/
-│       ├── core/          # agent.py, ai_client.py (Ollama, OpenRouter, Gateway)
+│       ├── core/          # agent.py, ai_client.py (OpenRouter, Gateway)
 │       ├── api/
 │       ├── utils/
 │       └── settings.py
@@ -89,23 +88,22 @@ Placeholder suportado: `{REGIMENTO}`.
 
 ## Configuracao de provedores de IA
 
-O backend suporta tres provedores (configurados no `.env`):
+O backend suporta dois provedores (configurados no `.env`):
 
 | Provedor | Variavel principal | Uso |
 |----------|-------------------|-----|
-| **Ollama** | `ROSITA_OLLAMA_HOST`, `ROSITA_OLLAMA_MODEL` | IA local ou remota via Ollama |
-| **OpenRouter** | `ROSITA_OPENROUTER_API_KEY`, `ROSITA_OPENROUTER_MODEL` | Modelos na nuvem (https://openrouter.ai) |
+| **OpenRouter** | `ROSITA_OPENROUTER_API_KEY`, `ROSITA_OPENROUTER_MODEL` | Modelos na nuvem (https://openrouter.ai) — padrão |
 | **Gateway** | `ROSITA_GATEWAY_URL`, `ROSITA_GATEWAY_MODEL` | Servidor OpenAI-compatible no seu servidor (vLLM, LocalAI, LM Studio, etc.) |
 
 Provedor ativo por padrao:
 
 ```env
-ROSITA_AI_PROVIDER=ollama
+ROSITA_AI_PROVIDER=openrouter
 ```
 
-Valores aceitos: `ollama`, `openrouter` ou `gateway`.
+Valores aceitos: `openrouter` ou `gateway`.
 
-Se mais de um provedor estiver configurado (ex.: Ollama + chave OpenRouter), o administrador pode alternar entre eles na interface ou via API (`GET /api/provedores`, `POST /api/provedores/trocar`).
+Se mais de um provedor estiver configurado (ex.: OpenRouter + gateway local), o administrador pode alternar entre eles na interface ou via API (`GET /api/provedores`, `POST /api/provedores/trocar`).
 
 Exemplo OpenRouter:
 
@@ -187,9 +185,7 @@ start_system.bat
 O script:
 - verifica Python no computador;
 - tenta instalar Python automaticamente via `winget` se nao encontrar;
-- verifica se o Ollama esta instalado;
-- pergunta se deseja instalar o Ollama automaticamente quando ausente;
-- inicia o Ollama automaticamente quando instalado e parado;
+- valida o provedor de IA configurado (Open Router ou Gateway);
 - cria `.venv`;
 - instala dependencias do backend;
 - inicia backend e web em terminais separados;
@@ -208,14 +204,14 @@ O script Linux foi reforçado para um cenário mais robusto:
 - valida a estrutura do projeto antes de iniciar;
 - verifica Python 3.8+ e instala dependências de sistema quando necessário;
 - cria/usa `.venv` e reinstala pacotes com retry;
-- garante Ollama ativo sem baixar ou ativar modelos automaticamente;
+- valida o provedor de IA configurado (Open Router ou Gateway);
 - valida backend e web por checagem real de resposta;
 - grava logs persistentes na pasta `logs/`.
 
-Para ambiente leve, como MiniOS, você pode usar um modelo menor:
+Para ambiente leve, como MiniOS, basta configurar o provedor no `.env`:
 
 ```bash
-ROSITA_OLLAMA_MODEL=llama3.2:3b ./start_system.sh --yes
+ROSITA_OPENROUTER_API_KEY=sk-or-... ./start_system.sh --yes
 ```
 
 Guia detalhado: `docs/linux_startup.md`.
@@ -249,11 +245,10 @@ python agent_cli.py
 ## Deploy com Docker / Coolify
 
 1. copie o arquivo `.env.example` para `.env`;
-2. por padrão, o projeto usa um provedor de IA externo ou local configurado no `.env`; o `docker-compose.yml` não traz Ollama interno;
-3. se quiser usar um servidor de IA externo, ajuste `ROSITA_OLLAMA_HOST` no `.env` ou use `ROSITA_AI_PROVIDER=gateway`;
-4. para usar OpenRouter, configure `ROSITA_AI_PROVIDER=openrouter`, `ROSITA_OPENROUTER_API_KEY` e `ROSITA_OPENROUTER_MODEL`;
-5. para usar um gateway local (IA rodando no seu servidor), configure `ROSITA_AI_PROVIDER=gateway` e `ROSITA_GATEWAY_URL`;
-6. suba a stack com o Compose:
+2. por padrão, o projeto usa **Open Router** como provedor de IA (nuvem); o `docker-compose.yml` não traz servidor de IA interno;
+3. para usar OpenRouter, configure `ROSITA_AI_PROVIDER=openrouter`, `ROSITA_OPENROUTER_API_KEY` e `ROSITA_OPENROUTER_MODEL`;
+4. para usar um gateway local (IA rodando no seu servidor), configure `ROSITA_AI_PROVIDER=gateway` e `ROSITA_GATEWAY_URL`;
+5. suba a stack com o Compose:
 
 ```bash
 docker compose up -d --build
@@ -271,15 +266,15 @@ Serviços padrão:
 - Web: `http://SEU_SERVIDOR:18080`
 - API: `http://SEU_SERVIDOR:18500`
 
-Na primeira abertura, se ainda não houver modelo instalado, a própria interface web permite baixar modelos recomendados e acompanhar o progresso em tempo real.
+Na primeira abertura, se ainda não houver modelo ativo, a própria interface web permite selecionar um modelo disponível no provedor configurado.
 Nenhum modelo é baixado, ativado ou trocado automaticamente sem ação do usuário.
 Os arquivos em backend/data também podem ser editados pela interface e salvos no ambiente em execução.
 
-Com GPU, o ficheiro `docker-compose.gpu.yml` acima expõe o Ollama e o backend ao driver NVIDIA (requer toolkit no host).
+O desempenho depende do modelo escolhido no provedor configurado (Open Router ou gateway).
 
 No Coolify, basta importar o repositório e usar o arquivo `docker-compose.yml` da raiz (CPU). Para GPU no Coolify, acrescente o override `docker-compose.gpu.yml` conforme a documentação da plataforma.
 
-No **MiniOS ou máquina sem GPU**, ignore `docker-compose.gpu.yml` e prefira modelos Ollama **menores** (ex.: `llama3.2:3b`) para resposta aceitável em CPU.
+No **MiniOS ou máquina sem GPU**, prefira um gateway com modelo menor (ex.: `deepseek-chat`) para resposta aceitável em CPU, ou use o Open Router com um modelo leve.
 
 ## API
 
@@ -290,7 +285,7 @@ No **MiniOS ou máquina sem GPU**, ignore `docker-compose.gpu.yml` e prefira mod
 - `POST /api/chat` (rate limit 20/min; resposta em SSE)
 - `GET /api/historico` (do usuario logado), `POST /api/limpar` (do usuario logado)
 - `GET /api/provedores` (admin)
-- `POST /api/provedores/trocar` (admin; body: `{ "provedor": "ollama" | "openrouter" | "gateway" }`)
+- `POST /api/provedores/trocar` (admin; body: `{ "provedor": "openrouter" | "gateway" }`)
 - `GET /api/models`, `POST /api/models/select` (admin)
 
 O plano de melhorias e correcoes do projeto esta em `docs/PLANO_MELHORIAS.md`.

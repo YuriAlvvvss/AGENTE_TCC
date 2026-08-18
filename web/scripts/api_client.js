@@ -161,40 +161,8 @@ class RositaApiClient {
     return res.json();
   }
 
-  async baixarModelo(model, onProgress = null) {
-    return this.streamSse(
-      "/api/models/download",
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model }),
-      },
-      (evento) => {
-        if (typeof onProgress === "function") onProgress(evento);
-      }
-    );
-  }
-
   async selecionarModelo(model) {
     const res = await this.request("/api/models/select", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ model }),
-    });
-    if (!res.ok) throw new Error(await this._parseErro(res));
-    return res.json();
-  }
-
-  async descarregarModeloAtual() {
-    const res = await this.request("/api/models/unload", {
-      method: "POST",
-    });
-    if (!res.ok) throw new Error(await this._parseErro(res));
-    return res.json();
-  }
-
-  async excluirModelo(model) {
-    const res = await this.request("/api/models/delete", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ model }),

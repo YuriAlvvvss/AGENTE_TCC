@@ -289,11 +289,7 @@ def create_api_blueprint(
             "modelo_atual": agent.obter_modelo_atual(),
             "ocupado": agent.is_busy,
             "provedor_ia": getattr(agent, "active_provider", settings.ai_provider),
-            "servidor_ia": agent.settings.ollama_host,
             "gateway_url": agent.settings.gateway_url,
-            "baixando_modelo": agent.is_downloading,
-            "status_download": agent.download_status,
-            "progresso_download": agent.download_percent,
             "documentos_contexto": agent.documentos_contexto,
             "contexto_carregado": bool(agent.prompt_sistema.strip()),
             **auth,
@@ -310,11 +306,6 @@ def create_api_blueprint(
                 {
                     "models": agent.listar_modelos_instalados(),
                     "current_model": agent.obter_modelo_atual(),
-                    "recommended_models": agent.obter_modelos_recomendados(),
-                    "downloading": agent.is_downloading,
-                    "download_model": agent.download_model,
-                    "download_status": agent.download_status,
-                    "download_percent": agent.download_percent,
                 }
             )
         except Exception as exc:
@@ -342,81 +333,6 @@ def create_api_blueprint(
             return jsonify({"erro": str(exc)}), 409
         except Exception as exc:
             return jsonify({"erro": str(exc)}), 500
-
-    @api_bp.route("/models/unload", methods=["POST"])
-    @_require_roles("admin")
-    def unload_model() -> Any:
-        try:
-            previous_model = agent.descarregar_modelo_ativo()
-            return jsonify(
-                {
-                    "mensagem": "Modelo descarregado com sucesso.",
-                    "previous_model": previous_model,
-                    "current_model": agent.obter_modelo_atual(),
-                }
-            )
-        except ValueError as exc:
-            return jsonify({"erro": str(exc)}), 400
-        except RuntimeError as exc:
-            return jsonify({"erro": str(exc)}), 409
-        except Exception as exc:
-            return jsonify({"erro": str(exc)}), 500
-
-    @api_bp.route("/models/delete", methods=["POST"])
-    @_require_roles("admin")
-    def delete_model() -> Any:
-        dados = request.get_json(silent=True)
-        if dados is None or not isinstance(dados, dict):
-            return jsonify({"erro": "JSON inválido ou ausente."}), 400
-
-        model = dados.get("model")
-        if not isinstance(model, str) or not model.strip():
-            return jsonify({"erro": "Campo 'model' é obrigatório."}), 400
-        if not validar_nome_modelo(model):
-            return jsonify({"erro": "Nome de modelo inválido."}), 400
-
-        try:
-            removed_model = agent.excluir_modelo(model)
-            return jsonify(
-                {
-                    "mensagem": "Modelo excluído com sucesso.",
-                    "removed_model": removed_model,
-                    "current_model": agent.obter_modelo_atual(),
-                }
-            )
-        except ValueError as exc:
-            return jsonify({"erro": str(exc)}), 400
-        except RuntimeError as exc:
-            return jsonify({"erro": str(exc)}), 409
-        except Exception as exc:
-            return jsonify({"erro": str(exc)}), 500
-
-    @api_bp.route("/models/download", methods=["POST"])
-    @_require_roles("admin")
-    def download_model() -> Any:
-        dados = request.get_json(silent=True)
-        if dados is None or not isinstance(dados, dict):
-            return jsonify({"erro": "JSON inválido ou ausente."}), 400
-
-        model = dados.get("model")
-        if not isinstance(model, str) or not model.strip():
-            return jsonify({"erro": "Campo 'model' é obrigatório."}), 400
-        if not validar_nome_modelo(model):
-            return jsonify({"erro": "Nome de modelo inválido."}), 400
-
-        def gerar_download() -> Generator[str, None, None]:
-            try:
-                for evento in agent.baixar_modelo(model):
-                    yield _sse_chunk_payload(evento)
-                yield "data: [FIM]\n\n"
-            except Exception as exc:
-                yield f"data: [ERRO] {exc}\n\n"
-
-        return Response(
-            gerar_download(),
-            mimetype="text/event-stream",
-            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-        )
 
     @api_bp.route("/config/files", methods=["GET"])
     @_require_roles("admin")
@@ -539,7 +455,7 @@ def create_api_blueprint(
     @api_bp.route("/credenciais", methods=["PUT", "POST"])
     @_require_roles("admin")
     def salvar_credenciais() -> Any:
-        """Aplica e persiste a configuração do provedor (Ollama/OpenRouter/Gateway)."""
+        """Aplica e persiste a configuração do provedor (OpenRouter/Gateway)."""
         dados = request.get_json(silent=True)
         if dados is None or not isinstance(dados, dict):
             return jsonify({"erro": "JSON inválido ou ausente."}), 400
@@ -547,8 +463,6 @@ def create_api_blueprint(
         mudancas: dict[str, str] = {}
         for campo in (
             "ai_provider",
-            "ollama_host",
-            "ollama_model",
             "openrouter_model",
             "gateway_url",
             "gateway_model",
@@ -556,11 +470,6 @@ def create_api_blueprint(
             valor = dados.get(campo)
             if isinstance(valor, str):
                 mudancas[campo] = valor.strip()
-
-        # O host do Ollama nunca deve ser apagado para vazio (deixaria o Ollama
-        # sem endereço). Se vier em branco, mantém o valor atual.
-        if not mudancas.get("ollama_host", "").strip():
-            mudancas.pop("ollama_host", None)
 
         # As API keys só são alteradas quando enviadas e não-vazias, para não
         # apagar a credencial existente acidentalmente. Para limpar, use o
@@ -589,8 +498,6 @@ def create_api_blueprint(
         config_atual = agent.obter_config()
         env_values = {
             "ROSITA_AI_PROVIDER": agent.active_provider,
-            "ROSITA_OLLAMA_HOST": agent.settings.ollama_host,
-            "ROSITA_OLLAMA_MODEL": agent.settings.ollama_model,
             "ROSITA_OPENROUTER_API_KEY": agent.settings.openrouter_api_key,
             "ROSITA_OPENROUTER_MODEL": agent.settings.openrouter_model,
             "ROSITA_GATEWAY_URL": agent.settings.gateway_url,

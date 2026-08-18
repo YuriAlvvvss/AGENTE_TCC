@@ -7,7 +7,7 @@ from typing import Any
 # deveriam aparecer numa mensagem digitada e podem indicar entrada maliciosa.
 _CARACTERES_CONTROLE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 
-# Nome de modelo aceito (Ollama/OpenAI-compatible): letras, números e os
+# Nome de modelo aceito (OpenAI-compatible): letras, números e os
 # separadores usuais. Ex.: "llama3.2:3b", "openai/gpt-4o-mini", "Llama-3.1-8B".
 _NOME_MODELO = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/\-]{0,127}$")
 

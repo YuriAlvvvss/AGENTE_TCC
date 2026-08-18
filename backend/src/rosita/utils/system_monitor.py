@@ -114,7 +114,7 @@ def _read_gpu_metrics() -> dict[str, Any]:
         "memoria_percentual": None,
         "temperatura_c": None,
         "driver": "indisponível",
-        "mensagem": "GPU não detectada para uso com o modelo; o Ollama tende a usar CPU neste host.",
+        "mensagem": "GPU não detectada para uso com o modelo de IA configurado.",
     }
 
 

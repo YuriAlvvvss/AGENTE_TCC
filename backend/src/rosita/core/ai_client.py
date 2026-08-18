@@ -1,17 +1,12 @@
-"""Clientes abstratos para provedores de IA (Ollama e Open Router)."""
+"""Clientes abstratos para provedores de IA (Open Router e Gateway)."""
 
 from __future__ import annotations
 
-import os
-import shutil
 import socket
-import subprocess
-import sys
 import time
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Generator, List
 
-import ollama
 import requests
 
 from rosita.settings import Settings
@@ -21,8 +16,7 @@ def _tipos_erro_rede() -> tuple[type, ...]:
     """Reúne as classes de exceção de rede das bibliotecas HTTP em uso.
 
     Detectar por tipo é mais confiável do que procurar palavras na mensagem,
-    que variam entre versões e idiomas. As exceções do ``ollama`` propagam via
-    ``httpx``; as chamadas REST usam ``requests``.
+    que variam entre versões e idiomas. As chamadas REST usam ``requests``.
     """
     tipos: list[type] = [
         socket.gaierror,
@@ -130,163 +124,6 @@ class AIClient(ABC):
     def validate_connection(self) -> bool:
         """Valida se a conexão com o provedor está funcionando."""
         pass
-
-
-class OllamaClient(AIClient):
-    """Cliente para Ollama local ou remoto."""
-
-    def __init__(self, settings: Settings) -> None:
-        self.settings = settings
-        # Suppress stderr durante inicialização do cliente para evitar
-        # mensagens de erro de conexão que já são tratadas adequadamente
-        import io
-        old_stderr = sys.stderr
-        sys.stderr = io.StringIO()
-        try:
-            try:
-                self.client = ollama.Client(host=self.settings.ollama_host)
-            except TypeError:
-                # Versões antigas do ollama podem não ter o parâmetro 'host'
-                self.client = ollama.Client(self.settings.ollama_host)
-        finally:
-            sys.stderr = old_stderr
-
-    def _usa_cli_local(self) -> bool:
-        """Indica se faz sentido tentar usar a CLI local do Ollama."""
-        host = (self.settings.ollama_host or "").lower()
-        return any(token in host for token in ("127.0.0.1", "localhost")) and bool(
-            shutil.which("ollama")
-        )
-
-    def _is_connection_error(self, exc: Exception) -> bool:
-        """Identifica falhas transitórias de conexão com o servidor Ollama."""
-        # Reutiliza a detecção tipada (com fallback defensivo) compartilhada.
-        return _is_network_error(exc)
-
-    def _formatar_erro_ollama(self, exc: Exception) -> str:
-        """Converte erros de conexão do Ollama em mensagens mais claras."""
-        detalhe = str(exc).strip()
-        if self._usa_cli_local():
-            base = (
-                f"O Ollama local não está respondendo em {self.settings.ollama_host}. "
-                "Abra o aplicativo Ollama ou execute 'ollama serve'."
-            )
-            return f"{base} Detalhes: {detalhe}" if detalhe else base
-        return detalhe or f"Não foi possível conectar ao Ollama em {self.settings.ollama_host}."
-
-    def _start_local_ollama(self) -> None:
-        """Tenta iniciar o Ollama local em background."""
-        kwargs: dict[str, Any] = {
-            "stdout": subprocess.DEVNULL,
-            "stderr": subprocess.DEVNULL,
-        }
-
-        if os.name == "nt":
-            creationflags = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
-            if creationflags:
-                kwargs["creationflags"] = creationflags
-        else:
-            kwargs["start_new_session"] = True
-
-        subprocess.Popen(["ollama", "serve"], **kwargs)
-
-    def _ensure_running(self) -> Any:
-        """Garante que o servidor Ollama esteja acessível."""
-        try:
-            return self.client.list()
-        except Exception as exc:
-            if not self._usa_cli_local() or not self._is_connection_error(exc):
-                raise RuntimeError(self._formatar_erro_ollama(exc)) from exc
-
-        try:
-            self._start_local_ollama()
-        except Exception as exc:
-            raise RuntimeError(self._formatar_erro_ollama(exc)) from exc
-
-        ultimo_erro: Exception | None = None
-        for _ in range(10):
-            try:
-                return self.client.list()
-            except Exception as exc:
-                ultimo_erro = exc
-                time.sleep(1)
-
-        raise RuntimeError(
-            self._formatar_erro_ollama(ultimo_erro or RuntimeError("Ollama indisponível."))
-        )
-
-    def validate_connection(self) -> bool:
-        """Valida conexão com Ollama."""
-        try:
-            self._ensure_running()
-            return True
-        except Exception:
-            return False
-
-    def chat(
-        self,
-        model: str,
-        messages: List[Dict[str, str]],
-        stream: bool = True,
-        options: dict | None = None,
-    ) -> Generator[Dict[str, Any], None, None]:
-        """Envia mensagens para Ollama com streaming."""
-        self._ensure_running()
-        chat_options = dict(options or {})
-
-        stream_result = self.client.chat(
-            model=model,
-            messages=messages,
-            stream=stream,
-            options=chat_options,
-        )
-
-        for chunk in stream_result:
-            yield chunk
-
-    def list_models(self) -> List[str]:
-        """Lista modelos disponíveis no Ollama."""
-        data = self._ensure_running()
-        if isinstance(data, dict):
-            entries = data.get("models", [])
-        else:
-            entries = getattr(data, "models", []) or []
-
-        modelos = []
-        for item in entries:
-            if isinstance(item, dict):
-                nome = item.get("model") or item.get("name")
-            else:
-                nome = getattr(item, "model", None) or getattr(item, "name", None)
-            if nome:
-                modelos.append(nome)
-        return sorted(set(modelos))
-
-    def delete_model(self, model: str) -> None:
-        """Remove um modelo do Ollama."""
-        self._ensure_running()
-        self.client.delete(model)
-
-    def generate_keep_alive_zero(self, model: str) -> None:
-        """Descarrega um modelo do Ollama."""
-        try:
-            self.client.generate(
-                model=model,
-                prompt="",
-                stream=False,
-                keep_alive=0,
-            )
-        except Exception:
-            if self._usa_cli_local():
-                try:
-                    subprocess.run(
-                        ["ollama", "stop", model],
-                        check=False,
-                        capture_output=True,
-                        text=True,
-                    )
-                except Exception:
-                    pass
 
 
 class OpenRouterClient(AIClient):
@@ -599,15 +436,13 @@ class GatewayClient(AIClient):
 
 def create_ai_client(settings: Settings) -> AIClient:
     """Factory para criar o cliente de IA apropriado."""
-    provider = (settings.ai_provider or "ollama").strip().lower()
+    provider = (settings.ai_provider or "openrouter").strip().lower()
 
     if provider == "openrouter":
         return OpenRouterClient(settings)
     elif provider == "gateway":
         return GatewayClient(settings)
-    elif provider == "ollama":
-        return OllamaClient(settings)
     else:
         raise ValueError(
-            f"Provedor de IA desconhecido: {provider}. Use 'ollama', 'openrouter' ou 'gateway'."
+            f"Provedor de IA desconhecido: {provider}. Use 'openrouter' ou 'gateway'."
         )

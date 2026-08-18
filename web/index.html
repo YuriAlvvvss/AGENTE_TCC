@@ -191,7 +191,7 @@
         <div class="section-header">
           <div>
             <h2>Painel Administrativo</h2>
-            <p class="section-subtitle">Gerencie modelo, referências e downloads</p>
+            <p class="section-subtitle">Gerencie modelo, referências e provedor de IA</p>
           </div>
         </div>
 
@@ -201,9 +201,6 @@
           </button>
           <button class="admin-tab" role="tab" aria-selected="false" data-tab="references" aria-controls="panel-references">
             Referências
-          </button>
-          <button class="admin-tab" role="tab" aria-selected="false" data-tab="download" aria-controls="panel-download">
-            Download
           </button>
           <button class="admin-tab" role="tab" aria-selected="false" data-tab="provider" aria-controls="panel-provider">
             Provedor de IA
@@ -232,18 +229,6 @@
                   <path d="M1 4v6h6M23 20v-6h-6M20.3 5.51C18.52 3.71 16.04 2.5 13.25 2.5c-5.85 0-10.74 5.25-10.74 11.7h2.5c0-5.08 4.41-9.2 8.24-9.2 2.04 0 3.94.81 5.31 2.12L13 11h8V3l-2.7 2.51zM3.7 18.49C5.48 20.29 7.96 21.5 10.75 21.5c5.85 0 10.74-5.25 10.74-11.7h-2.5c0 5.08-4.41 9.2-8.24 9.2-2.04 0-3.94-.81-5.31-2.12L11 13H3v8l2.7-2.51z"/>
                 </svg>
                 Atualizar
-              </button>
-              <button id="unload-model-btn" class="btn-secondary">
-                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                  <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/>
-                </svg>
-                Descarregar
-              </button>
-              <button id="delete-model-btn" class="btn-danger">
-                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                  <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-9l-1 1H5v2h14V4z"/>
-                </svg>
-                Excluir
               </button>
             </div>
           </div>
@@ -276,47 +261,12 @@
           </div>
         </div>
 
-        <!-- Download Tab -->
-        <div id="panel-download" class="admin-panel" role="tabpanel" aria-labelledby="panel-download">
-          <div class="admin-card">
-            <h3 class="admin-card-title">Baixar Modelo</h3>
-            <p class="admin-card-subtitle">
-              Insira o nome do modelo do Ollama (ex: llama3.2:3b, mistral:7b)
-            </p>
-
-            <div class="download-controls">
-              <input
-                type="text"
-                id="model-download-input"
-                class="form-input"
-                placeholder="Nome do modelo (ex: llama3.2:3b)"
-                aria-label="Nome do modelo para baixar"
-              />
-              <button id="download-model-btn" class="btn-success">
-                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                  <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
-                </svg>
-                Baixar
-              </button>
-            </div>
-
-            <div id="download-progress-wrap" class="download-progress hidden">
-              <div id="download-status" class="download-status">Preparando download...</div>
-              <div class="progress-bar">
-                <div id="download-progress-bar" class="progress-bar-fill"></div>
-              </div>
-            </div>
-
-            <div id="suggested-models" class="suggested-models"></div>
-          </div>
-        </div>
-
         <!-- Provider Tab -->
         <div id="panel-provider" class="admin-panel" role="tabpanel" aria-labelledby="panel-provider">
           <div class="admin-card">
             <h3 class="admin-card-title">Provedor de IA</h3>
             <p class="admin-card-subtitle">
-              Escolha de onde a ROSITA obtém as respostas: Ollama (local), Open Router (nuvem)
+              Escolha de onde a ROSITA obtém as respostas: Open Router (nuvem)
               ou um Gateway custom compatível com a API da OpenAI (vLLM, LM Studio, LocalAI...).
               A configuração é aplicada na hora e fica salva para os próximos reinícios.
             </p>
@@ -324,22 +274,10 @@
             <div class="provider-field">
               <label for="provider-select" class="form-label">Provedor ativo</label>
               <select id="provider-select" class="form-input">
-                <option value="ollama">Ollama (local)</option>
                 <option value="openrouter">Open Router (nuvem)</option>
                 <option value="gateway">Gateway custom (OpenAI-compatible)</option>
               </select>
               <p id="provider-status-line" class="provider-status-line"></p>
-            </div>
-          </div>
-
-          <!-- Ollama -->
-          <div class="admin-card provider-group" data-provider-group="ollama">
-            <h3 class="admin-card-title">Ollama</h3>
-            <div class="provider-field">
-              <label for="ollama-host-input" class="form-label">Host do Ollama</label>
-              <input type="text" id="ollama-host-input" class="form-input"
-                placeholder="http://127.0.0.1:11434" autocomplete="off" />
-              <p class="provider-hint">Endereço do servidor Ollama. O modelo é escolhido na aba "Modelo Ativo".</p>
             </div>
           </div>
 
