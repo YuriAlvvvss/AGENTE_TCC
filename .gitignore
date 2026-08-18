@@ -13,4 +13,5 @@ backend/rosita_history.sqlite3
 
 .venv/
 
-.venv/
+# Segredos e configuração local (nunca versionar)
+.env
