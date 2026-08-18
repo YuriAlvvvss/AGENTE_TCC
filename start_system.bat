@@ -455,4 +455,8 @@ exit /b 0
 
 :fatal
 call :log_error "Processo interrompido devido a erro."
+echo.
+echo Verifique o log: %START_LOG%
+echo Pressione qualquer tecla para fechar esta janela...
+pause >nul
 exit /b 1
