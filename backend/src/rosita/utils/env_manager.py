@@ -24,6 +24,11 @@ MANAGED_KEYS = (
 def _quote(value: str) -> str:
     """Escapa o valor para o formato .env, usando aspas quando necessário."""
     value = "" if value is None else str(value)
+    # Valores com "$" (hashes scrypt, chaves de API) exigem aspas SIMPLES: o
+    # Docker Compose expande "$ALGO" em valores sem aspas ou com aspas duplas,
+    # inclusive nos arquivos carregados via env_file, corrompendo o valor.
+    if "$" in value and "'" not in value and "\n" not in value:
+        return f"'{value}'"
     if value == "" or any(ch in value for ch in ' #"\'\t\n'):
         escaped = value.replace("\\", "\\\\").replace('"', '\\"')
         return f'"{escaped}"'

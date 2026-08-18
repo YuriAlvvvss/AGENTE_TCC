@@ -24,7 +24,10 @@
       "Read(//private/tmp/**)",
       "Bash(rm -f rosita_cookies.txt)",
       "Bash(curl -s -c rosita_cookies.txt -X POST http://127.0.0.1:37643/api/auth/login -H \"Content-Type: application/json\" -d '{\"username\":\"admin\",\"password\":\"admin123\"}' -o /dev/null -w \"login HTTP %{http_code}\\\\n\")",
-      "Bash(curl -s -N -b rosita_cookies.txt -X POST http://127.0.0.1:37643/api/chat -H \"Content-Type: application/json\" -d '{\"mensagem\":\"Responda apenas com: funcionando\"}' --max-time 40)"
+      "Bash(curl -s -N -b rosita_cookies.txt -X POST http://127.0.0.1:37643/api/chat -H \"Content-Type: application/json\" -d '{\"mensagem\":\"Responda apenas com: funcionando\"}' --max-time 40)",
+      "Bash(curl -s -c rosita_cookies.txt -X POST http://127.0.0.1:37643/api/auth/login -H \"Content-Type: application/json\" -d '{\"username\":\"<ADMIN_USER>\",\"password\":\"<ADMIN_PASSWORD>\"}' -o /dev/null -w \"login HTTP %{http_code}\\n\")",
+      "Bash(python3 *)",
+      "Bash($V/bin/python *)"
     ]
-        "Bash(curl -s -c rosita_cookies.txt -X POST http://127.0.0.1:37643/api/auth/login -H \"Content-Type: application/json\" -d '{\"username\":\"<ADMIN_USER>\",\"password\":\"<ADMIN_PASSWORD>\"}' -o /dev/null -w \"login HTTP %{http_code}\\n\")",
+  }
 }

@@ -12,10 +12,19 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     restart: unless-stopped
+    # Ordem importa: o ÚLTIMO arquivo vence, então vai do mais genérico para o
+    # mais específico. env.defaults e env.admin são versionados (padrões);
+    # .env é a config local da máquina e precisa vencer os dois; backend/.env é
+    # escrito pelo painel admin e pode ainda não existir (required: false).
     env_file:
-      - .env
-      - backend/.env
-      - backend/env.admin
+      - path: backend/env.defaults
+        required: false
+      - path: backend/env.admin
+        required: false
+      - path: .env
+        required: false
+      - path: backend/.env
+        required: false
     environment:
       ROSITA_API_HOST: "0.0.0.0"
       ROSITA_API_PORT: "5000"
@@ -24,20 +33,11 @@ services:
       ROSITA_DEBUG: ${ROSITA_DEBUG:-false}
       ROSITA_BUNDLED_DATA_DIR: "/app/backend/data"
       ROSITA_HISTORY_DB: "/data/rosita_history.sqlite3"
-      ROSITA_SECRET_KEY: "${ROSITA_SECRET_KEY:-}"
-      ROSITA_ADMIN_USERNAME: "${ROSITA_ADMIN_USERNAME:-}"
-      ROSITA_ADMIN_PASSWORD_HASH: "${ROSITA_ADMIN_PASSWORD_HASH:-}"
-      ROSITA_USER_USERNAME: "${ROSITA_USER_USERNAME:-}"
-      ROSITA_USER_PASSWORD_HASH: "${ROSITA_USER_PASSWORD_HASH:-}"
-      # Provedor padrão: Gateway custom (OpenAI-compatible). Não depende de Ollama.
-      ROSITA_AI_PROVIDER: ${ROSITA_AI_PROVIDER:-gateway}
-      ROSITA_GATEWAY_URL: ${ROSITA_GATEWAY_URL:-http://100.75.86.69:3001}
-      ROSITA_GATEWAY_MODEL: ${ROSITA_GATEWAY_MODEL:-deepseek-chat}
-      ROSITA_GATEWAY_API_KEY: ${ROSITA_GATEWAY_API_KEY:-}
-      ROSITA_OLLAMA_HOST: ${ROSITA_OLLAMA_HOST:-http://host.docker.internal:11434}
-      ROSITA_OLLAMA_MODEL: ${ROSITA_OLLAMA_MODEL:-}
-      ROSITA_OPENROUTER_API_KEY: ${ROSITA_OPENROUTER_API_KEY:-}
-      ROSITA_OPENROUTER_MODEL: ${ROSITA_OPENROUTER_MODEL:-}
+      # ATENÇÃO: NÃO declare aqui credenciais, hashes, chaves de API nem nada que
+      # o painel admin salve. Tudo em `environment:` (a) passa pela interpolação
+      # do Compose, que come os trechos "$..." de hashes scrypt, e (b) sobrepõe o
+      # env_file, impedindo a config salva em backend/.env de valer. Esses
+      # valores vêm exclusivamente dos arquivos listados em env_file.
       ROSITA_MAX_HISTORY: ${ROSITA_MAX_HISTORY:-5}
       ROSITA_MAX_INPUT_CHARS: ${ROSITA_MAX_INPUT_CHARS:-1000}
       ROSITA_NUM_PREDICT: ${ROSITA_NUM_PREDICT:-256}
