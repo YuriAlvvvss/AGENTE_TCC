@@ -48,54 +48,76 @@ da escola, baseando-se na documentação oficial carregada em memória.
 ## Estrutura padronizada
 
 ```txt
-AGENTE_TCC/
+ROSITA/
 ├── agent_cli.py
 ├── backend/
 │   ├── app.py
+│   ├── Dockerfile
+│   ├── compose-entrypoint.sh
+│   ├── env.admin
+│   ├── env.defaults
 │   ├── requirements.txt
 │   ├── data/
 │   │   ├── agent_instructions.txt
 │   │   └── regimento_ECIM.txt
 │   └── src/rosita/
-│       ├── core/          # agent.py, ai_client.py (OpenRouter, Gateway)
-│       ├── api/
-│       ├── utils/
+│       ├── core/          # agent.py, ai_client.py (OpenRouter, Gateway), prompt_builder.py
+│       ├── api/           # routes.py (REST + SSE)
+│       ├── utils/         # env_manager, file_loader, history_store, system_monitor, validators
+│       ├── bootstrap.py
 │       └── settings.py
 ├── docker-compose.yml
-├── web/
-│   ├── index.html
-│   ├── scripts/
-│   └── styles/
+├── docker/
+│   └── minios-vfs-daemon.json
 ├── docs/
 │   ├── README.md
 │   ├── architecture.md
-│   └── implementation_plan.md
+│   ├── ARQUITETURA.md
+│   ├── implementation_plan.md
+│   ├── linux_startup.md
+│   └── PLANO_MELHORIAS.md
+├── frontend/              # anotações e guias de implantação do frontend
+├── requirements-dev.txt
+├── scripts/
+│   ├── enable-docker-vfs-minios.sh
+│   ├── set_admin_password.py
+│   ├── win_run_backend.bat
+│   └── win_run_web.bat
+├── start_system.bat
+├── start_system.sh
+├── tests/
+├── web/
+│   ├── Dockerfile
+│   ├── index.html
+│   ├── nginx.conf
+│   ├── scripts/
+│   └── styles/
 └── README.md
 ```
 
-## Convencoes adotadas
+## Convenções adotadas
 
-- nomes de pastas em minusculo;
+- nomes de pastas em minúsculo;
 - nomes Python em `snake_case`;
-- separacao por camadas (core, api, utils, settings);
-- instrucoes do agente fora do codigo.
+- separação por camadas (core, api, utils, settings);
+- instruções do agente fora do código.
 
-## Instrucoes do agente (editavel)
+## Instruções do agente (editável)
 
 Arquivo: `backend/data/agent_instructions.txt`
 
 Placeholder suportado: `{REGIMENTO}`.
 
-## Configuracao de provedores de IA
+## Configuração de provedores de IA
 
 O backend suporta dois provedores (configurados no `.env`):
 
-| Provedor | Variavel principal | Uso |
+| Provedor | Variável principal | Uso |
 |----------|-------------------|-----|
 | **OpenRouter** | `ROSITA_OPENROUTER_API_KEY`, `ROSITA_OPENROUTER_MODEL` | Modelos na nuvem (https://openrouter.ai) — padrão |
-| **Gateway** | `ROSITA_GATEWAY_URL`, `ROSITA_GATEWAY_MODEL` | Servidor OpenAI-compatible no seu servidor (vLLM, LocalAI, LM Studio, etc.) |
+| **Gateway** | `ROSITA_GATEWAY_URL`, `ROSITA_GATEWAY_MODEL`, `ROSITA_GATEWAY_API_KEY` | Servidor OpenAI-compatible no seu servidor (vLLM, LocalAI, LM Studio, etc.) |
 
-Provedor ativo por padrao:
+Provedor ativo por padrão:
 
 ```env
 ROSITA_AI_PROVIDER=openrouter
@@ -119,15 +141,16 @@ Exemplo Gateway (IA local no servidor):
 ROSITA_AI_PROVIDER=gateway
 ROSITA_GATEWAY_URL=http://127.0.0.1:8000
 ROSITA_GATEWAY_MODEL=seu-modelo
+# ROSITA_GATEWAY_API_KEY=chave-opcional-do-gateway
 ```
 
 O gateway deve expor `GET /v1/models` e `POST /v1/chat/completions` (URL base **sem** `/v1` no final).
 
-Copie `.env.example` para `.env` e preencha as variaveis do provedor desejado.
+Copie `.env.example` para `.env` e preencha as variáveis do provedor desejado.
 
-## Seguranca e autenticacao
+## Segurança e autenticação
 
-As credenciais e a chave de sessao vem do `.env` (veja `.env.example`):
+As credenciais e a chave de sessão vêm do `.env` (veja `.env.example`):
 
 ```env
 # Gere a chave: python -c "import secrets; print(secrets.token_hex(32))"
@@ -144,6 +167,8 @@ ROSITA_USER_PASSWORD_HASH=
 
 - As senhas são verificadas por **hash** (`scrypt`/`werkzeug`), com comparação de
   tempo constante (proteção contra timing attack).
+- O **login é restrito ao perfil admin**; o perfil de usuário comum usa o chat
+  sem login (visita anônima com histórico isolado por sessão).
 - Se `ROSITA_SECRET_KEY` ficar vazia, uma chave aleatória é gerada a cada início
   (as sessões não persistem entre reinícios) — defina-a em produção.
 - Se os `_HASH` ficarem vazios, aceita-se a senha em texto via
@@ -151,18 +176,37 @@ ROSITA_USER_PASSWORD_HASH=
   temporário é gerado e o login administrativo fica indisponível por padrão —
   **não** use isso em produção.
 - Para desenvolvimento local, você também pode definir credenciais em
-  `.venv/admin_password.env`, que será carregado automaticamente ao ativar o
-  ambiente virtual local.
-- `POST /api/auth/login` (10/min) e `POST /api/chat` (20/min) tem limite de taxa.
+  `.venv/admin_password.env` (gerado por `scripts/set_admin_password.py`), que é
+  carregado automaticamente ao iniciar o backend local.
+- `POST /api/auth/login` (10/min) e `POST /api/chat` (20/min) têm limite de taxa.
 
-## Historico por usuario
+## Histórico por usuário
 
-O historico de conversa e persistido em **SQLite**, isolado por usuario, e
-sobrevive a reinicios do servidor. O caminho do banco e configuravel:
+O histórico de conversa é persistido em **SQLite**, isolado por usuário (ou por
+visitante anônimo, via ID de sessão), e sobrevive a reinícios do servidor. O
+caminho do banco é configurável:
 
 ```env
 ROSITA_HISTORY_DB=backend/rosita_history.sqlite3
 ```
+
+## Ajustes opcionais
+
+Variáveis adicionais disponíveis no `.env` (veja `.env.example`):
+
+| Variável | Padrão | Descrição |
+|----------|--------|-----------|
+| `ROSITA_WEB_PORT` | `18080` | Porta pública da interface web |
+| `ROSITA_API_PORT` | `18500` | Porta pública da API |
+| `ROSITA_BACKEND_URL` | `http://127.0.0.1:18500` | URL do backend usada pelo servidor de desenvolvimento do frontend |
+| `ROSITA_SESSION_COOKIE_SECURE` | `false` | Marque `true` quando servir por HTTPS (cookies de sessão só por TLS) |
+| `ROSITA_MAX_HISTORY` | `5` | Quantidade de mensagens do histórico enviadas ao provedor |
+| `ROSITA_MAX_INPUT_CHARS` | `1000` | Limite de caracteres por mensagem |
+| `ROSITA_NUM_PREDICT` | `256` | Tamanho máximo da resposta gerada |
+| `ROSITA_TEMPERATURE` | `0.75` | Criatividade do modelo |
+| `ROSITA_TOP_P` | `0.92` | Amostragem *nucleus sampling* |
+| `ROSITA_REPEAT_PENALTY` | `1.08` | Penalidade de repetição |
+| `ROSITA_DEBUG` | `false` | Modo de depuração do Flask |
 
 ## Testes
 
@@ -171,12 +215,12 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-Cobrem o `HistoryStore`, validacao de entrada, autenticacao/autorizacao e o nucleo
+Cobrem o `HistoryStore`, validação de entrada, autenticação/autorização e o núcleo
 do agente (sem depender de um servidor de IA).
 
-## Execucao
+## Execução
 
-### Inicializacao automatica (recomendado - Windows)
+### Inicialização automática (recomendado - Windows)
 
 ```bat
 start_system.bat
@@ -184,16 +228,16 @@ start_system.bat
 
 O script:
 - verifica Python no computador;
-- tenta instalar Python automaticamente via `winget` se nao encontrar;
+- tenta instalar Python automaticamente via `winget` se não encontrar;
 - valida o provedor de IA configurado (Open Router ou Gateway);
 - cria `.venv`;
-- instala dependencias do backend;
+- instala dependências do backend;
 - inicia backend e web em terminais separados;
 - usa as portas locais configuradas no `.env`, com padrão `18500` e `18080`;
 - abre o navegador automaticamente no frontend local;
-- gera logs de inicializacao na pasta `logs/`.
+- gera logs de inicialização na pasta `logs/`.
 
-### Inicializacao automatica (recomendado - Linux)
+### Inicialização automática (recomendado - Linux)
 
 ```bash
 chmod +x start_system.sh
@@ -256,7 +300,7 @@ docker compose up -d --build
 
 O `docker-compose.yml` padrão não exige GPU e deve funcionar em CPUs mais lentas; o desempenho depende do modelo.
 
-Se você tiver **placa NVIDIA** e o **NVIDIA Container Toolkit** instalado, use um arquivo de override GPU customizado de sua infraestrutura (não há `docker-compose.gpu.yml` incluído neste repositório).
+Se você tiver **placa NVIDIA** e o **NVIDIA Container Toolkit** instalado, crie seu próprio override GPU (não há `docker-compose.gpu.yml` incluído neste repositório).
 
 ### MiniOS e erro `overlay` / `invalid argument`
 
@@ -272,7 +316,7 @@ Os arquivos em backend/data também podem ser editados pela interface e salvos n
 
 O desempenho depende do modelo escolhido no provedor configurado (Open Router ou gateway).
 
-No Coolify, basta importar o repositório e usar o arquivo `docker-compose.yml` da raiz (CPU). Para GPU no Coolify, acrescente o override `docker-compose.gpu.yml` conforme a documentação da plataforma.
+No Coolify, basta importar o repositório e usar o arquivo `docker-compose.yml` da raiz (CPU). Para GPU no Coolify, adicione um override próprio (ex.: `docker-compose.gpu.yml`) conforme a documentação da plataforma.
 
 No **MiniOS ou máquina sem GPU**, prefira um gateway com modelo menor (ex.: `deepseek-chat`) para resposta aceitável em CPU, ou use o Open Router com um modelo leve.
 
@@ -280,17 +324,24 @@ No **MiniOS ou máquina sem GPU**, prefira um gateway com modelo menor (ex.: `de
 
 - `GET /`
 - `GET /api/health` — healthcheck que verifica o provedor de IA (200 ok / 503 degradado)
-- `GET /api/status` (inclui `provedor_ia`, `gateway_url` quando aplicavel)
-- `POST /api/auth/login` (rate limit 10/min), `POST /api/auth/logout`, `GET /api/auth/session`
+- `GET /api/status` (inclui `provedor_ia`, `gateway_url` quando aplicável)
+- `POST /api/auth/login` (rate limit 10/min; **apenas admin**), `POST /api/auth/logout`, `GET /api/auth/session`
 - `POST /api/chat` (rate limit 20/min; resposta em SSE)
-- `GET /api/historico` (do usuario logado), `POST /api/limpar` (do usuario logado)
+- `GET /api/historico`, `POST /api/limpar` (do usuário logado ou do visitante anônimo da sessão)
 - `GET /api/provedores` (admin)
 - `POST /api/provedores/trocar` (admin; body: `{ "provedor": "openrouter" | "gateway" }`)
 - `GET /api/models`, `POST /api/models/select` (admin)
+- `GET /api/credenciais`, `PUT /api/credenciais` (admin; configuração do provedor de IA, persistida no `.env`)
+- `GET /api/config/files` (admin; lista os arquivos de dados editáveis)
+- `GET /api/config/files/<nome>` (admin; lê um arquivo de dados)
+- `PUT /api/config/files/<nome>` (admin; salva um arquivo de dados, com backup `.bak`)
 
-O plano de melhorias e correcoes do projeto esta em `docs/PLANO_MELHORIAS.md`.
+O plano de melhorias e correções do projeto está em `docs/PLANO_MELHORIAS.md`.
 
-## Documentacao adicional
+## Documentação adicional
 
-- `docs/architecture.md`
-- `docs/implementation_plan.md`
+- `docs/architecture.md` — arquitetura, camadas e provedores de IA
+- `docs/ARQUITETURA.md` — decisões de arquitetura do frontend (vanilla JS sem bundler)
+- `docs/implementation_plan.md` — plano de implementação frontend-first
+- `docs/linux_startup.md` — guia de execução no Linux/MiniOS
+- `docs/PLANO_MELHORIAS.md` — plano de melhorias e correções
