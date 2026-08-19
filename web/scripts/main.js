@@ -7,6 +7,8 @@ class RositaApp {
     this.appShell = document.getElementById("app-shell");
     this.sidebarToggle = document.getElementById("sidebar-toggle");
     this.sidebarCollapsedKey = "sidebarCollapsed";
+    this.themeToggle = document.getElementById("theme-toggle");
+    this.themeKey = "rosita-theme";
     this.loginForm = document.getElementById("login-form");
     this.loginUsername = document.getElementById("login-username");
     this.loginPassword = document.getElementById("login-password");
@@ -90,6 +92,7 @@ class RositaApp {
 
     this.bindEvents();
     this.initializeSidebar();
+    this.applyTheme(this.getCurrentTheme());
     this.atualizarContadorCaracteres();
     this.updateControls();
     this.atualizarVisibilidadeProvedor();
@@ -117,6 +120,7 @@ class RositaApp {
     this.adminLoginBackdrop?.addEventListener("click", () => this.hideAdminLoginModal());
     this.logoutBtn?.addEventListener("click", () => this.logout());
     this.sidebarToggle?.addEventListener("click", () => this.toggleSidebar());
+    this.themeToggle?.addEventListener("click", () => this.toggleTheme());
     this.sendBtn?.addEventListener("click", () => this.enviarMensagem());
     this.clearBtn?.addEventListener("click", () => this.limparChat());
     this.reloadModelsBtn?.addEventListener("click", () => this.carregarModelos());
@@ -204,6 +208,29 @@ class RositaApp {
   toggleSidebar() {
     const isCollapsed = Boolean(this.appShell?.classList.contains("sidebar-collapsed"));
     this.setSidebarCollapsed(!isCollapsed);
+  }
+
+  getCurrentTheme() {
+    return document.documentElement.getAttribute("data-theme") === "light" ? "light" : "dark";
+  }
+
+  applyTheme(theme) {
+    const resolved = theme === "light" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", resolved);
+    if (this.themeToggle) {
+      const isLight = resolved === "light";
+      this.themeToggle.setAttribute("aria-pressed", String(isLight));
+      this.themeToggle.title = isLight ? "Alternar para tema escuro" : "Alternar para tema claro";
+    }
+    try {
+      window.localStorage.setItem(this.themeKey, resolved);
+    } catch (error) {
+      console.warn("Não foi possível salvar a preferência de tema.", error);
+    }
+  }
+
+  toggleTheme() {
+    this.applyTheme(this.getCurrentTheme() === "light" ? "dark" : "light");
   }
 
   showAdminLoginModal() {
