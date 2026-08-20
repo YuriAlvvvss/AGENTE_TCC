@@ -15,7 +15,7 @@ da escola, baseando-se na documentação oficial carregada em memória.
 │  HTML + CSS + JS (vanilla)   │
 │  • Login / sessão            │
 │  • Chat com streaming (SSE)  │
-│  • Markdown + tema claro/escuro
+│  • Tema claro/escuro         │
 │  • Painel admin / status     │
 └──────────────┬───────────────┘
                │  REST + SSE  (/api/*, cookie de sessão)
@@ -39,9 +39,13 @@ da escola, baseando-se na documentação oficial carregada em memória.
 - **Autenticação** com senhas em hash (`werkzeug`), `secret_key` por ambiente e
   rate limiting em login/chat.
 - **Histórico por usuário** persistido em SQLite (sobrevive a reinícios).
-- **Chat em streaming** com renderização de Markdown, indicador de "digitando",
-  botão de parar/copiar e auto-scroll inteligente.
-- **Tema claro/escuro** com persistência e respeito ao `prefers-color-scheme`.
+- **Chat em streaming** com indicador de "digitando", botão de parar/copiar e
+  auto-scroll inteligente.
+- **Tema claro/escuro** persistido em `localStorage` (`rosita-theme`), com
+  fallback para `prefers-color-scheme` e troca pelo botão na sidebar. Tokens CSS
+  em `web/styles/main.css`: o escuro fica em `:root`; o claro em
+  `html[data-theme="light"]` (degradê suave e glassmorphism). O layout do
+  compositor (largura alinhada à área de mensagens) é o mesmo nos dois temas.
 - **Múltiplos provedores de IA** alternáveis em runtime pela interface admin.
 - **Healthcheck** (`/api/health`) que verifica o provedor de IA.
 
@@ -49,9 +53,11 @@ da escola, baseando-se na documentação oficial carregada em memória.
 
 ```txt
 ROSITA/
+├── .env.example
 ├── agent_cli.py
+├── pytest.ini
 ├── backend/
-│   ├── app.py
+│   ├── app.py             # entrypoint Flask (usa app_factory)
 │   ├── Dockerfile
 │   ├── compose-entrypoint.sh
 │   ├── env.admin
@@ -64,6 +70,7 @@ ROSITA/
 │       ├── core/          # agent.py, ai_client.py (OpenRouter, Gateway), prompt_builder.py
 │       ├── api/           # routes.py (REST + SSE)
 │       ├── utils/         # env_manager, file_loader, history_store, system_monitor, validators
+│       ├── app_factory.py
 │       ├── bootstrap.py
 │       └── settings.py
 ├── docker-compose.yml
@@ -85,13 +92,14 @@ ROSITA/
 │   └── win_run_web.bat
 ├── start_system.bat
 ├── start_system.sh
-├── tests/
+├── tests/                 # HistoryStore, auth/API, validadores, proxy web, deploy
 ├── web/
 │   ├── Dockerfile
 │   ├── index.html
 │   ├── nginx.conf
-│   ├── scripts/
-│   └── styles/
+│   ├── README.md
+│   ├── scripts/           # main.js, api_client.js, config.js, dev_server.py
+│   └── styles/            # main.css (temas claro/escuro)
 └── README.md
 ```
 
@@ -215,8 +223,9 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-Cobrem o `HistoryStore`, validação de entrada, autenticação/autorização e o núcleo
-do agente (sem depender de um servidor de IA).
+Cobrem o `HistoryStore`, validação de entrada, autenticação/autorização, o núcleo
+do agente (sem depender de um servidor de IA), o proxy do frontend
+(`web/scripts/dev_server.py`) e checagens de deploy.
 
 ## Execução
 
@@ -270,13 +279,21 @@ python app.py
 
 ### Web (frontend)
 
-O frontend já é servido pelo Nginx em `web/Dockerfile` ou via `start_system.bat` /
-`start_system.sh`. Para testes locais simples, você também pode usar:
+Em produção o frontend é servido pelo Nginx (`web/Dockerfile`). Em desenvolvimento
+local, `start_system.bat` / `start_system.sh` sobem o proxy em `web/scripts/dev_server.py`
+(encaminha `/api` para o backend). O mesmo servidor pode ser iniciado à parte:
 
 ```bash
 cd web
-python -m http.server 18080
+python scripts/dev_server.py
 ```
+
+Porta padrão: `18080` (`ROSITA_WEB_PORT`). Backend padrão do proxy:
+`http://127.0.0.1:18500` (`ROSITA_BACKEND_URL`). Detalhes: `web/README.md`.
+
+Alternativa sem proxy (`python -m http.server`) não encaminha `/api`; nesse caso
+ajuste `window.ROSITA_API_BASE_URL` em `web/scripts/config.js` se a API não
+estiver na mesma origem.
 
 Abra `http://127.0.0.1:18080`.
 
@@ -322,7 +339,7 @@ No **MiniOS ou máquina sem GPU**, prefira um gateway com modelo menor (ex.: `de
 
 ## API
 
-- `GET /`
+- `GET /` — JSON `{ "mensagem": "API ROSITA online" }`
 - `GET /api/health` — healthcheck que verifica o provedor de IA (200 ok / 503 degradado)
 - `GET /api/status` (inclui `provedor_ia`, `gateway_url` quando aplicável)
 - `POST /api/auth/login` (rate limit 10/min; **apenas admin**), `POST /api/auth/logout`, `GET /api/auth/session`
@@ -345,3 +362,4 @@ O plano de melhorias e correções do projeto está em `docs/PLANO_MELHORIAS.md`
 - `docs/implementation_plan.md` — plano de implementação frontend-first
 - `docs/linux_startup.md` — guia de execução no Linux/MiniOS
 - `docs/PLANO_MELHORIAS.md` — plano de melhorias e correções
+- `web/README.md` — como servir o frontend localmente (proxy e modo estático)

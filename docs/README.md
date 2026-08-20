@@ -7,3 +7,5 @@ Esta pasta centraliza a documentação técnica e funcional da ROSITA.
 - `implementation_plan.md`: plano de implementação frontend-first (sem CLI).
 - `linux_startup.md`: guia para executar o script automático no Linux.
 - `PLANO_MELHORIAS.md`: plano de melhorias e correções do projeto.
+
+O README da pasta `web/` descreve o servidor de desenvolvimento (proxy `/api`) e os temas claro/escuro.
