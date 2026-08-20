@@ -41,9 +41,10 @@ da escola, baseando-se na documentação oficial carregada em memória.
 - **Histórico por usuário** persistido em SQLite (sobrevive a reinícios).
 - **Chat em streaming** com indicador de "digitando", botão de parar/copiar e
   auto-scroll inteligente.
-- **Tema claro/escuro** persistido em `localStorage` (`rosita-theme`), com
-  fallback para `prefers-color-scheme` e troca pelo botão na sidebar. Tokens CSS
-  em `web/styles/main.css`: o escuro fica em `:root`; o claro em
+- **Tema claro/escuro**: a abertura da interface **sempre inicia no tema escuro**
+  (não usa `prefers-color-scheme` nem restaura o tema claro salvo). O botão na
+  sidebar ainda permite alternar durante a sessão. Tokens CSS em
+  `web/styles/main.css`: o escuro fica em `:root`; o claro em
   `html[data-theme="light"]` (degradê suave e glassmorphism). O layout do
   compositor (largura alinhada à área de mensagens) é o mesmo nos dois temas.
 - **Múltiplos provedores de IA** alternáveis em runtime pela interface admin.

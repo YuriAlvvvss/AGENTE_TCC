@@ -92,7 +92,7 @@ class RositaApp {
 
     this.bindEvents();
     this.initializeSidebar();
-    this.applyTheme(this.getCurrentTheme());
+    this.applyTheme("dark");
     this.atualizarContadorCaracteres();
     this.updateControls();
     this.atualizarVisibilidadeProvedor();

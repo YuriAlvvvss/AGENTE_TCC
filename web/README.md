@@ -5,9 +5,9 @@ Interface web oficial do projeto (HTML, CSS e JavaScript sem bundler).
 ## Temas
 
 A interface tem **tema claro** e **tema escuro**, controlados pelo atributo
-`data-theme` em `<html>` (`light` ou `dark`). A preferência é salva em
-`localStorage` (`rosita-theme`). Se não houver valor salvo, usa
-`prefers-color-scheme`. O botão na sidebar alterna os temas.
+`data-theme` em `<html>` (`light` ou `dark`). **Cada abertura inicia no tema
+escuro.** O botão na sidebar alterna os temas na sessão atual; o tema claro não
+é restaurado automaticamente na próxima visita.
 
 Estilos: `styles/main.css`. Tokens do escuro em `:root`; tokens e efeitos do
 claro (degradê, vidro) só em `html[data-theme="light"]`. O layout (sidebar,
